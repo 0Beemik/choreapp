@@ -1,0 +1,187 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Button applies the correct styles for the large size 1`] = `
+<View
+  accessibilityRole="button"
+  accessibilityState={
+    {
+      "busy": undefined,
+      "checked": undefined,
+      "disabled": false,
+      "expanded": undefined,
+      "selected": undefined,
+    }
+  }
+  accessibilityValue={
+    {
+      "max": undefined,
+      "min": undefined,
+      "now": undefined,
+      "text": undefined,
+    }
+  }
+  accessible={true}
+  collapsable={false}
+  focusable={true}
+  onClick={[Function]}
+  onResponderGrant={[Function]}
+  onResponderMove={[Function]}
+  onResponderRelease={[Function]}
+  onResponderTerminate={[Function]}
+  onResponderTerminationRequest={[Function]}
+  onStartShouldSetResponder={[Function]}
+  style={
+    {
+      "alignItems": "center",
+      "backgroundColor": "#007bff",
+      "borderBottomLeftRadius": 8,
+      "borderBottomRightRadius": 8,
+      "borderTopLeftRadius": 8,
+      "borderTopRightRadius": 8,
+      "justifyContent": "center",
+      "opacity": 1,
+      "paddingBottom": 16,
+      "paddingLeft": 24,
+      "paddingRight": 24,
+      "paddingTop": 16,
+    }
+  }
+>
+  <Text
+    size="large"
+    style={
+      {
+        "color": "#fff",
+        "fontSize": 20,
+        "fontWeight": "bold",
+      }
+    }
+  >
+    Test Button
+  </Text>
+</View>
+`;
+
+exports[`Button applies the correct styles for the medium size 1`] = `
+<View
+  accessibilityRole="button"
+  accessibilityState={
+    {
+      "busy": undefined,
+      "checked": undefined,
+      "disabled": false,
+      "expanded": undefined,
+      "selected": undefined,
+    }
+  }
+  accessibilityValue={
+    {
+      "max": undefined,
+      "min": undefined,
+      "now": undefined,
+      "text": undefined,
+    }
+  }
+  accessible={true}
+  collapsable={false}
+  focusable={true}
+  onClick={[Function]}
+  onResponderGrant={[Function]}
+  onResponderMove={[Function]}
+  onResponderRelease={[Function]}
+  onResponderTerminate={[Function]}
+  onResponderTerminationRequest={[Function]}
+  onStartShouldSetResponder={[Function]}
+  style={
+    {
+      "alignItems": "center",
+      "backgroundColor": "#007bff",
+      "borderBottomLeftRadius": 8,
+      "borderBottomRightRadius": 8,
+      "borderTopLeftRadius": 8,
+      "borderTopRightRadius": 8,
+      "justifyContent": "center",
+      "opacity": 1,
+      "paddingBottom": 12,
+      "paddingLeft": 18,
+      "paddingRight": 18,
+      "paddingTop": 12,
+    }
+  }
+>
+  <Text
+    size="medium"
+    style={
+      {
+        "color": "#fff",
+        "fontSize": 16,
+        "fontWeight": "bold",
+      }
+    }
+  >
+    Test Button
+  </Text>
+</View>
+`;
+
+exports[`Button applies the correct styles for the small size 1`] = `
+<View
+  accessibilityRole="button"
+  accessibilityState={
+    {
+      "busy": undefined,
+      "checked": undefined,
+      "disabled": false,
+      "expanded": undefined,
+      "selected": undefined,
+    }
+  }
+  accessibilityValue={
+    {
+      "max": undefined,
+      "min": undefined,
+      "now": undefined,
+      "text": undefined,
+    }
+  }
+  accessible={true}
+  collapsable={false}
+  focusable={true}
+  onClick={[Function]}
+  onResponderGrant={[Function]}
+  onResponderMove={[Function]}
+  onResponderRelease={[Function]}
+  onResponderTerminate={[Function]}
+  onResponderTerminationRequest={[Function]}
+  onStartShouldSetResponder={[Function]}
+  style={
+    {
+      "alignItems": "center",
+      "backgroundColor": "#007bff",
+      "borderBottomLeftRadius": 8,
+      "borderBottomRightRadius": 8,
+      "borderTopLeftRadius": 8,
+      "borderTopRightRadius": 8,
+      "justifyContent": "center",
+      "opacity": 1,
+      "paddingBottom": 8,
+      "paddingLeft": 12,
+      "paddingRight": 12,
+      "paddingTop": 8,
+    }
+  }
+>
+  <Text
+    size="small"
+    style={
+      {
+        "color": "#fff",
+        "fontSize": 12,
+        "fontWeight": "bold",
+      }
+    }
+  >
+    Test Button
+  </Text>
+</View>
+`;
