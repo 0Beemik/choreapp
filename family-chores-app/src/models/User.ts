@@ -1,4 +1,5 @@
 import { UserRole } from '../types/enums';
+import { AvatarConfig } from '../types/avatar';
 
 export interface UserPreferences {
   notifications: boolean;
@@ -10,7 +11,7 @@ export interface User {
   id: string;
   familyId: string;
   name: string;
-  avatarPath?: string;
+  avatarConfig?: AvatarConfig;
   age: number;
   role: UserRole;
   isAdmin: boolean;
