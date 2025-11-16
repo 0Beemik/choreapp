@@ -6,7 +6,7 @@ import { VacationMode } from './VacationMode';
 
 interface FamilySettingsPanelProps {
   family: Family;
-  onSettingsUpdate: (settings: Partial<FamilySettings>, rotationDay?: string) => void;
+  onSettingsUpdate: (settings: Partial<FamilySettings>) => void;
   onActivateVacationMode: (startDate: Date, endDate: Date) => void;
 }
 
@@ -25,7 +25,7 @@ export const FamilySettingsPanel: React.FC<FamilySettingsPanelProps> = ({
       setPointsPerChore(String(family.settings.pointsPerChore));
       setBuyoutCostPercentage(String(family.settings.buyoutCostPercentage));
       setMaxBuyoutsPerMonth(String(family.settings.maxBuyoutsPerMonth));
-      setRotationDay(family.rotationDay);
+      setRotationDay(family.settings.rotationDay);
     }
   }, [family]);
 
@@ -34,8 +34,9 @@ export const FamilySettingsPanel: React.FC<FamilySettingsPanelProps> = ({
       pointsPerChore: parseInt(pointsPerChore, 10),
       buyoutCostPercentage: parseInt(buyoutCostPercentage, 10),
       maxBuyoutsPerMonth: parseInt(maxBuyoutsPerMonth, 10),
+      rotationDay: rotationDay as 'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday',
     };
-    onSettingsUpdate(settings, rotationDay);
+    onSettingsUpdate(settings);
   };
 
   return (

@@ -10,5 +10,6 @@ export interface Family {
   id: string;
   name: string;
   settings: FamilySettings;
+  lastRotationDate: Date | null;
   createdAt: Date;
 }

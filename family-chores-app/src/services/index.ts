@@ -10,6 +10,7 @@ import { AchievementService } from './AchievementService';
 import { BadgeService } from './BadgeService';
 import { LeaderboardService } from './LeaderboardService';
 import { ValidationService } from './ValidationService';
+import { RotationService } from './RotationService';
 
 // Repository imports
 import { FamilyRepository } from '../repositories/FamilyRepository';
@@ -86,6 +87,7 @@ export const achievementService = new AchievementService(
   badgeService
 );
 export const leaderboardService = new LeaderboardService(leaderboardRepository);
+export const rotationService = new RotationService(familyRepository, choreService);
 
 // Export service classes for testing
 export {
@@ -100,4 +102,5 @@ export {
   BadgeService,
   LeaderboardService,
   ValidationService,
+  RotationService,
 };

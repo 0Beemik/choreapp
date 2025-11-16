@@ -9,6 +9,7 @@ interface FamilyRow {
   id: string;
   name: string;
   created_at: string;
+  last_rotation_date: string | null;
   settings_points_per_chore: number;
   settings_buyout_cost_percentage: number;
   settings_max_buyouts_per_month: number;
@@ -25,6 +26,7 @@ export class FamilyRepository extends BaseRepository<Family> implements IFamilyR
       id: typedRow.id,
       name: typedRow.name,
       createdAt: new Date(typedRow.created_at),
+      lastRotationDate: typedRow.last_rotation_date ? new Date(typedRow.last_rotation_date) : null,
       settings: {
         pointsPerChore: typedRow.settings_points_per_chore,
         buyoutCostPercentage: typedRow.settings_buyout_cost_percentage,
