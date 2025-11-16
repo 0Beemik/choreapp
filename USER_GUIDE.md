@@ -2,26 +2,51 @@
 
 This is a **gamified family chore management system** designed to teach kids responsibility through a point-based reward system.
 
+**Current Version:** 1.0.0 (70% feature complete - see Known Limitations below)
+
+---
+
+## ⚠️ **Known Limitations (v1.0)**
+
+This section documents features that are **planned but not yet fully implemented**:
+
+### Setup & Configuration
+- ❌ **Avatar customization** during setup not available (shows initials only)
+- ❌ **Admin PIN** must be configured later via admin panel (not in setup wizard)
+- ❌ **Additional family members** must be added after setup via admin panel
+- ❌ **Family settings** use defaults initially, configure later via admin panel
+
+### Gamification Features
+- ⚠️ **Badge System**: Only "Points Milestone" badges work currently
+  - ❌ Completion Streak badges - not yet implemented
+  - ❌ Perfect Week badges - not yet implemented
+  - ❌ Leaderboard Position badges - not yet implemented
+
+### Automation
+- ⚠️ **Chore Rotation**: Manual only (no automatic rotation on schedule)
+  - Parents must manually trigger rotation via admin panel
+  - No automatic rotation on specified rotation day
+
+### Monetization
+- ⚠️ **Ads**: Currently in test mode only (no revenue generation yet)
+  - Requires AdMob configuration for production use
+
+**See IMPLEMENTATION_STATUS.md for complete details and roadmap.**
+
 ---
 
 ## 🏠 **Family Setup (First-Time Use)**
 
-**What you do:**
-1. Create your family profile
+**Current setup wizard (3 steps):**
+1. Create family profile
 2. Set family name
-3. Add family members (parents & kids)
-4. Customize each person with:
-   - Name
-   - Age
-   - Role (Parent/Child)
-   - Avatar (using avataaars customization)
-   - Admin privileges (optional)
-5. Configure family settings:
-   - Points per chore completed
-   - Buyout cost percentage
-   - Max buyouts allowed per month
-   - Chore rotation day
-   - Set admin PIN for management
+3. Add admin user (name + age)
+
+**After setup, use Admin Panel to:**
+- Add additional family members
+- Set admin PIN for security
+- Configure family settings (points, buyouts, rotation)
+- Customize user profiles
 
 ---
 
@@ -102,11 +127,11 @@ This is a **gamified family chore management system** designed to teach kids res
 
 ### **Achievements & Badges**
 - Unlock badges based on performance:
-  - **Completion Streak** - Complete chores X days in a row
-  - **Perfect Week** - Complete all chores in a week
-  - **Points Milestone** - Reach point thresholds (100, 500, 1000)
-  - **Leaderboard Position** - Reach top rankings
-- View progress toward next badges
+  - **Points Milestone** ✅ - Reach point thresholds (100, 500, 1000) - WORKING
+  - **Completion Streak** ⚠️ - Complete chores X days in a row - Coming in v1.1
+  - **Perfect Week** ⚠️ - Complete all chores in a week - Coming in v1.1
+  - **Leaderboard Position** ⚠️ - Reach top rankings - Coming in v1.1
+- View progress toward points milestone badges
 - Get celebration animations when unlocked
 
 ### **Leaderboard**
@@ -119,11 +144,16 @@ This is a **gamified family chore management system** designed to teach kids res
 
 ## 🎮 **Key Features**
 
-### **Automatic Chore Rotation**
-- Chores rotate between family members on schedule
-- Fair distribution based on age/ability
-- Weekly/bi-weekly rotation options
-- Parents can override assignments
+### **Chore Rotation** ⚠️
+**Current (v1.0):** Manual rotation only
+- Parents trigger rotation via admin panel
+- Simple round-robin assignment
+- Parents can override any assignment
+
+**Coming in v1.1:**
+- Automatic rotation on schedule (rotation day setting)
+- History-aware fair distribution
+- Age/ability-based assignment matching
 
 ### **Age-Adaptive Interface**
 - Simplified UI for younger kids
