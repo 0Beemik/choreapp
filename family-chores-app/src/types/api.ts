@@ -1,4 +1,5 @@
 import { UserRole } from './enums';
+import { AvatarConfig } from './avatar';
 
 export interface CreateUserRequest {
   name: string;
@@ -6,6 +7,7 @@ export interface CreateUserRequest {
   role: UserRole;
   isAdmin?: boolean;
   allowanceRate?: number;
+  avatarConfig?: AvatarConfig;
 }
 
 export interface UpdateUserRequest {
@@ -13,7 +15,7 @@ export interface UpdateUserRequest {
   age?: number;
   role?: UserRole;
   isAdmin?: boolean;
-  avatarPath?: string;
+  avatarConfig?: AvatarConfig;
   allowanceRate?: number;
 }
 

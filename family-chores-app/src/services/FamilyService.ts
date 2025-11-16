@@ -95,6 +95,7 @@ export class FamilyService implements IFamilyService {
       role: userRequest.role,
       isAdmin: userRequest.isAdmin || false,
       allowanceRate: userRequest.allowanceRate || 0,
+      avatarConfig: userRequest.avatarConfig,
       preferences: {
         notifications: true,
         soundEffects: true,
