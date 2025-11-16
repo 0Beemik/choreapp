@@ -4,6 +4,7 @@ import { CreateChoreRequest, UpdateChoreRequest, CompletionResult, BuyoutResult 
 import { IChoreRepository, ChoreRepository } from '../repositories/ChoreRepository';
 import { IAssignmentRepository, AssignmentRepository } from '../repositories/AssignmentRepository';
 import { IPointsService, PointsService } from './PointsService';
+import { IVacationSettingsRepository } from '../repositories/VacationSettingsRepository';
 
 
 
@@ -24,7 +25,8 @@ export class ChoreService implements IChoreService {
   constructor(
     private choreRepository: IChoreRepository,
     private assignmentRepository: IAssignmentRepository,
-    private pointsService: IPointsService
+    private pointsService: IPointsService,
+    private vacationSettingsRepository: IVacationSettingsRepository
   ) {}
 
   async createChore(request: CreateChoreRequest, familyId: string): Promise<Chore> {
@@ -45,6 +47,13 @@ export class ChoreService implements IChoreService {
   }
 
   async assignChores(familyId: string, period: AssignmentPeriod): Promise<ChoreAssignment[]> {
+    // Check if family is on vacation and assignments should be paused
+    const isOnVacation = await this.isVacationActive(familyId, period.start);
+    if (isOnVacation) {
+      console.log(`Family ${familyId} is on vacation. Skipping chore assignments.`);
+      return []; // Don't create assignments during vacation
+    }
+
     // In a real implementation, the AssignmentEngine would have complex logic
     // for fair chore distribution, rotation, and history tracking.
     // For now, we'll use a simplified approach.
@@ -118,6 +127,26 @@ export class ChoreService implements IChoreService {
 
   async getChoresByFamily(familyId: string): Promise<Chore[]> {
     return this.choreRepository.findByFamilyId(familyId);
+  }
+
+  /**
+   * Check if family is currently on vacation and assignments should be paused
+   */
+  private async isVacationActive(familyId: string, checkDate: Date): Promise<boolean> {
+    const vacationSettings = await this.vacationSettingsRepository.findByFamilyId(familyId);
+
+    if (!vacationSettings) {
+      return false; // No vacation configured
+    }
+
+    if (!vacationSettings.pauseAssignments) {
+      return false; // Vacation exists but assignments not paused
+    }
+
+    // Check if checkDate falls within vacation period
+    const isWithinPeriod = checkDate >= vacationSettings.startDate && checkDate <= vacationSettings.endDate;
+
+    return isWithinPeriod;
   }
 }
 

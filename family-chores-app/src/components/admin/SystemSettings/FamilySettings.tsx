@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, Platform } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { Family, FamilySettings } from '../../../models';
 import { VacationMode } from './VacationMode';
 
 interface FamilySettingsPanelProps {
   family: Family;
-  onSettingsUpdate: (settings: Partial<FamilySettings>) => void;
+  onSettingsUpdate: (settings: Partial<FamilySettings>, rotationDay?: string) => void;
   onActivateVacationMode: (startDate: Date, endDate: Date) => void;
 }
 
@@ -17,12 +18,14 @@ export const FamilySettingsPanel: React.FC<FamilySettingsPanelProps> = ({
   const [pointsPerChore, setPointsPerChore] = useState('');
   const [buyoutCostPercentage, setBuyoutCostPercentage] = useState('');
   const [maxBuyoutsPerMonth, setMaxBuyoutsPerMonth] = useState('');
+  const [rotationDay, setRotationDay] = useState<string>('sunday');
 
   useEffect(() => {
     if (family) {
       setPointsPerChore(String(family.settings.pointsPerChore));
       setBuyoutCostPercentage(String(family.settings.buyoutCostPercentage));
       setMaxBuyoutsPerMonth(String(family.settings.maxBuyoutsPerMonth));
+      setRotationDay(family.rotationDay);
     }
   }, [family]);
 
@@ -32,7 +35,7 @@ export const FamilySettingsPanel: React.FC<FamilySettingsPanelProps> = ({
       buyoutCostPercentage: parseInt(buyoutCostPercentage, 10),
       maxBuyoutsPerMonth: parseInt(maxBuyoutsPerMonth, 10),
     };
-    onSettingsUpdate(settings);
+    onSettingsUpdate(settings, rotationDay);
   };
 
   return (
@@ -59,6 +62,24 @@ export const FamilySettingsPanel: React.FC<FamilySettingsPanelProps> = ({
         onChangeText={setMaxBuyoutsPerMonth}
         keyboardType="number-pad"
       />
+
+      <Text style={styles.label}>Chore Rotation Day</Text>
+      <View style={styles.pickerContainer}>
+        <Picker
+          selectedValue={rotationDay}
+          onValueChange={(value) => setRotationDay(value)}
+          style={styles.picker}
+        >
+          <Picker.Item label="Sunday" value="sunday" />
+          <Picker.Item label="Monday" value="monday" />
+          <Picker.Item label="Tuesday" value="tuesday" />
+          <Picker.Item label="Wednesday" value="wednesday" />
+          <Picker.Item label="Thursday" value="thursday" />
+          <Picker.Item label="Friday" value="friday" />
+          <Picker.Item label="Saturday" value="saturday" />
+        </Picker>
+      </View>
+
       <Button title="Save Settings" onPress={handleSave} />
 
       <VacationMode onActivate={onActivateVacationMode} />
@@ -85,5 +106,15 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 15,
     borderRadius: 5,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    marginBottom: 15,
+    backgroundColor: '#fff',
+  },
+  picker: {
+    height: Platform.OS === 'ios' ? 150 : 50,
   },
 });

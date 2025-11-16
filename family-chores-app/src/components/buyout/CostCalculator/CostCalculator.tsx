@@ -13,14 +13,24 @@ interface CostCalculatorProps {
 
 const CostCalculator: React.FC<CostCalculatorProps> = ({ assignment, user, family }) => {
   const [calculation, setCalculation] = useState<BuyoutCalculation | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function calculate() {
-      const result = await buyoutService.calculateBuyoutCost(user, assignment, family);
-      setCalculation(result);
+      try {
+        const result = await buyoutService.calculateBuyoutCost(user.id, assignment.id);
+        setCalculation(result);
+        setError(null);
+      } catch (err) {
+        setError((err as Error).message);
+      }
     }
     calculate();
-  }, [user, assignment, family]);
+  }, [user.id, assignment.id]);
+
+  if (error) {
+    return <Text style={styles.error}>Error calculating cost: {error}</Text>;
+  }
 
   if (!calculation) {
     return <Text>Calculating cost...</Text>;
@@ -31,7 +41,12 @@ const CostCalculator: React.FC<CostCalculatorProps> = ({ assignment, user, famil
       <Text style={styles.title}>Buyout Cost</Text>
       <Text>Base cost: {calculation.baseCost} points</Text>
       <Text>Buyout cost: {calculation.adjustedCost} points</Text>
-      {!calculation.canAfford && <Text style={styles.error}>You can't afford this buyout.</Text>}
+      <Text>Your balance: {calculation.userBalance} points</Text>
+      {calculation.canAfford ? (
+        <Text style={styles.success}>Remaining after buyout: {calculation.remainingBalance} points</Text>
+      ) : (
+        <Text style={styles.error}>You can't afford this buyout.</Text>
+      )}
     </View>
   );
 };
@@ -43,6 +58,12 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   title: {
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  success: {
+    color: 'green',
+    marginTop: 5,
     fontWeight: 'bold',
   },
   error: {

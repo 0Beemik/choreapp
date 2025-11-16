@@ -47,7 +47,8 @@ export const pointsService = new PointsService(pointsRepository);
 export const choreService = new ChoreService(
   choreRepository,
   assignmentRepository,
-  pointsService
+  pointsService,
+  vacationSettingsRepository
 );
 export const familyService = new FamilyService(
   familyRepository,
