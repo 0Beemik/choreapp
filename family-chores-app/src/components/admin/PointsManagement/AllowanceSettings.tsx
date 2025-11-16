@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, FlatList, TextInput, Button, StyleSheet } from 'react-native';
 import { useFamily } from '../../../hooks/useFamily';
 import { User } from '../../../models/User';
-import { userService } from '../../../services/UserService';
+import { userService } from '../../../services';
 
 const AllowanceSettingsPanel: React.FC = () => {
   const { members, loading } = useFamily('some-family-id');

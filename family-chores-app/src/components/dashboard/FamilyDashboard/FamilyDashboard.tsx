@@ -7,7 +7,7 @@ import { DashboardContainer, MainContent, UserColumnContainer } from './FamilyDa
 import { FamilyInfoSection } from '../FamilyInfoSection/FamilyInfoSection';
 import { LeaderboardDisplay } from '../LeaderboardDisplay/LeaderboardDisplay';
 import { UserColumn } from '../UserColumn/UserColumn';
-import { ILeaderboardService } from '../../../services/LeaderboardService';
+import { ILeaderboardService } from '../../../services';
 import { useSharedValue } from 'react-native-reanimated';
 
 export interface FamilyDashboardProps {

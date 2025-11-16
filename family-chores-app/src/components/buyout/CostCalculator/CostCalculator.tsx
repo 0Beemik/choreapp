@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { ChoreAssignment } from '../../../models/ChoreAssignment';
 import { User } from '../../../models/User';
 import { Family } from '../../../models/Family';
-import { buyoutService, BuyoutCalculation } from '../../../services/BuyoutService';
+import { buyoutService, BuyoutCalculation } from '../../../services';
 
 interface CostCalculatorProps {
   assignment: ChoreAssignment;

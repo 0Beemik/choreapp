@@ -30,7 +30,7 @@ describe('AdminOverrideService', () => {
       const adjustment = {
         amount: 100,
         reason: 'Test adjustment',
-        category: 'bonus' as 'bonus',
+        category: 'bonus' as const,
       };
       const transaction: PointTransaction = {
         id: 't-1',
@@ -59,7 +59,7 @@ describe('AdminOverrideService', () => {
     it('should override a chore assignment', async () => {
       const assignmentId = 'as-1';
       const override = {
-        newStatus: 'completed' as 'completed',
+        newStatus: 'completed' as const,
         reason: 'Test override',
       };
       const assignment: ChoreAssignment = {
@@ -90,7 +90,7 @@ describe('AdminOverrideService', () => {
     it('should throw an error if assignment is not found', async () => {
       const assignmentId = 'as-1';
       const override = {
-        newStatus: 'completed' as 'completed',
+        newStatus: 'completed' as const,
         reason: 'Test override',
       };
 

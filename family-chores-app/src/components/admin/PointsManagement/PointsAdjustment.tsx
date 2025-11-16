@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
-import { adminOverrideService } from '../../../services/AdminOverrideService';
+import { adminOverrideService } from '../../../services';
 import { User } from '../../../models/User';
 
 interface PointsAdjustmentProps {

@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { User } from '../../../models/User';
 import { ChoreAssignment } from '../../../models/ChoreAssignment';
-import { buyoutService } from '../../../services/BuyoutService';
-import { familyService } from '../../../services/FamilyService';
+import { buyoutService } from '../../../services';
+import { familyService } from '../../../services';
 import { Family } from '../../../models/Family';
 
 interface BuyoutIndicatorProps {

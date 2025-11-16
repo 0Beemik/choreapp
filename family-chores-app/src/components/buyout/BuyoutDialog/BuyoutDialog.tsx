@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, View, Text, Button, StyleSheet } from 'react-native';
 import { ChoreAssignment } from '../../../models/ChoreAssignment';
-import { BuyoutCalculation } from '../../../services/BuyoutService';
+import { BuyoutCalculation } from '../../../services';
 
 interface BuyoutDialogProps {
   assignment: ChoreAssignment;

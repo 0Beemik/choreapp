@@ -16,3 +16,17 @@ export interface UpdateUserRequest {
   avatarPath?: string;
   allowanceRate?: number;
 }
+
+export interface CreateChoreRequest {
+  name: string;
+  description: string;
+  estimatedMinutes: number;
+  category: string;
+}
+
+export interface UpdateChoreRequest {
+  name?: string;
+  description?: string;
+  estimatedMinutes?: number;
+  category?: string;
+}

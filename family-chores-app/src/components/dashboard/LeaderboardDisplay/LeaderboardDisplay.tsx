@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { LeaderboardEntry } from '../../../models/LeaderboardEntry';
-import { ILeaderboardService } from '../../../services/LeaderboardService';
+import { ILeaderboardService } from '../../../services';
 
 interface LeaderboardDisplayProps {
   familyId: string;
