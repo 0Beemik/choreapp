@@ -1,52 +1,56 @@
 import * as SQLite from 'expo-sqlite';
 
-export interface DatabaseConnection {
-  initialize(): Promise<void>;
-  close(): Promise<void>;
-  query<T>(sql: string, params?: unknown[]): Promise<T[]>;
-  queryInTransaction<T>(tx: SQLite.SQLiteTransaction, sql: string, params?: unknown[]): Promise<T[]>;
-  transaction<T>(
-    callback: (tx: SQLite.SQLiteTransaction) => Promise<T>,
-    options?: { readOnly: boolean }
-  ): Promise<T>;
+export type SqlParam = string | number | null;
+
+/**
+ * The only surface repositories may use. Tests supply a better-sqlite3 implementation,
+ * so the exact same SQL runs in CI and on device.
+ */
+export interface Db {
+  all<T>(sql: string, params?: SqlParam[]): Promise<T[]>;
+  get<T>(sql: string, params?: SqlParam[]): Promise<T | null>;
+  run(sql: string, params?: SqlParam[]): Promise<void>;
+  exec(sql: string): Promise<void>;
+  /** Nested calls join the outer transaction. */
+  transaction<T>(fn: () => Promise<T>): Promise<T>;
 }
 
-class SQLiteConnection implements DatabaseConnection {
-  private db!: SQLite.SQLiteDatabase;
+export class ExpoDb implements Db {
+  private depth = 0;
 
-  async initialize(): Promise<void> {
-    this.db = await SQLite.openDatabaseAsync('family-chores.db');
+  constructor(private db: SQLite.SQLiteDatabase) {}
+
+  static async open(name = 'family-chores.db'): Promise<ExpoDb> {
+    return new ExpoDb(await SQLite.openDatabaseAsync(name));
   }
 
-  async close(): Promise<void> {
-    await this.db.closeAsync();
+  all<T>(sql: string, params: SqlParam[] = []) {
+    return this.db.getAllAsync<T>(sql, params);
   }
 
-  async query<T>(sql: string, params: unknown[] = []): Promise<T[]> {
-    const result = await this.db.getAllAsync<T>(sql, params);
+  get<T>(sql: string, params: SqlParam[] = []) {
+    return this.db.getFirstAsync<T>(sql, params);
+  }
+
+  async run(sql: string, params: SqlParam[] = []) {
+    await this.db.runAsync(sql, params);
+  }
+
+  exec(sql: string) {
+    return this.db.execAsync(sql);
+  }
+
+  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.depth > 0) return fn();
+    let result!: T;
+    this.depth++;
+    try {
+      await this.db.withTransactionAsync(async () => {
+        result = await fn();
+      });
+    } finally {
+      this.depth--;
+    }
     return result;
   }
-
-  async queryInTransaction<T>(tx: SQLite.SQLiteTransaction, sql: string, params: unknown[] = []): Promise<T[]> {
-    return new Promise((resolve, reject) => {
-      tx.executeSql(
-        sql,
-        params,
-        (_, { rows }) => resolve(rows._array as T[]),
-        (_, error) => {
-          reject(error);
-          return true; // Rollback
-        }
-      );
-    });
-  }
-
-  async transaction<T>(
-    callback: (tx: SQLite.SQLiteTransaction) => Promise<T>,
-    options: { readOnly: boolean } = { readOnly: false }
-  ): Promise<T> {
-    return this.db.transactionAsync(callback, options.readOnly);
-  }
 }
-
-export const dbConnection = new SQLiteConnection();

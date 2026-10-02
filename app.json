@@ -1,51 +1,72 @@
 {
   "expo": {
-    "name": "family-chores-app",
+    "name": "Family Chores",
     "slug": "family-chores-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "familychoresapp",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.brent.familychoresapp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.brent.familychoresapp",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "package": "com.brent.familychoresapp",
-      "edgeToEdgeEnabled": true
+        "backgroundColor": "#6C5CE7"
+      }
     },
     "web": {
-      "bundler": "metro",
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-router",
+      "expo-sqlite",
       [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "imageWidth": 160,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#FFF8EE"
         }
       ],
       [
-        "expo-build-properties",
+        "react-native-google-mobile-ads",
         {
-          "ios": {
-            "useFrameworks": "static"
-          }
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511",
+          "delayAppMeasurementInit": true
         }
       ]
     ],
-    "react-native-google-mobile-ads": {
-      "android_app_id": "ca-app-pub-xxxxxxxxxxxxxxxx~xxxxxxxxxx",
-      "ios_app_id": "ca-app-pub-xxxxxxxxxxxxxxxx~xxxxxxxxxx"
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "adUnits": {
+        "android": {
+          "banner": "",
+          "interstitial": "",
+          "rewarded": ""
+        },
+        "ios": {
+          "banner": "",
+          "interstitial": "",
+          "rewarded": ""
+        }
+      }
     }
+  },
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-3940256099942544~3347511713",
+    "ios_app_id": "ca-app-pub-3940256099942544~1458002511",
+    "delay_app_measurement_init": true
   }
 }
