@@ -5,6 +5,7 @@ import { Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initAds } from '@/src/ads/ads';
 import { AppProvider } from '@/src/state/AppContext';
+import { SyncProvider } from '@/src/state/SyncContext';
 import { colors } from '@/src/ui/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -31,23 +32,26 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AppProvider onReady={() => SplashScreen.hideAsync()} onError={setError}>
-        <StatusBar style="dark" />
-        <Stack
-          screenOptions={{
-            headerStyle: { backgroundColor: colors.bg },
-            headerTintColor: colors.primary,
-            headerTitleStyle: { color: colors.text, fontWeight: '800' },
-            headerShadowVisible: false,
-            contentStyle: { backgroundColor: colors.bg },
-          }}
-        >
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="setup" options={{ headerShown: false }} />
-          <Stack.Screen name="board" options={{ headerShown: false }} />
-          <Stack.Screen name="kid/[id]" options={{ title: '' }} />
-          <Stack.Screen name="leaderboard" options={{ title: 'Leaderboard' }} />
-          <Stack.Screen name="parent" options={{ headerShown: false }} />
-        </Stack>
+        <SyncProvider>
+          <StatusBar style="dark" />
+          <Stack
+            screenOptions={{
+              headerStyle: { backgroundColor: colors.bg },
+              headerTintColor: colors.primary,
+              headerTitleStyle: { color: colors.text, fontWeight: '800' },
+              headerShadowVisible: false,
+              contentStyle: { backgroundColor: colors.bg },
+            }}
+          >
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="setup" options={{ headerShown: false }} />
+            <Stack.Screen name="board" options={{ headerShown: false }} />
+            <Stack.Screen name="kid/[id]" options={{ title: '' }} />
+            <Stack.Screen name="leaderboard" options={{ title: 'Leaderboard' }} />
+            <Stack.Screen name="parent" options={{ headerShown: false }} />
+            <Stack.Screen name="join" options={{ title: 'Join your family' }} />
+          </Stack>
+        </SyncProvider>
       </AppProvider>
     </SafeAreaProvider>
   );

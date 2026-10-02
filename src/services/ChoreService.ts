@@ -1,5 +1,5 @@
 import { uuid } from '../lib/crypto';
-import { monthBounds } from '../lib/dates';
+import { dayKey, localTimestamp, monthBounds } from '../lib/dates';
 import type { Badge, Chore, ChoreAssignment, ChoreFrequency, Family } from '../models';
 import type { BadgeService } from './BadgeService';
 import { UserFacingError, type Deps } from './deps';
@@ -88,16 +88,24 @@ export class ChoreService {
     });
   }
 
-  async complete(assignmentId: string): Promise<CompletionResult> {
+  /**
+   * `at` is when the kid actually tapped it. Joined devices sync later, so a chore done on
+   * time still counts even if the hub has since marked it missed.
+   */
+  async complete(assignmentId: string, at?: Date): Promise<CompletionResult> {
     const { repos } = this.deps;
     const { assignment, chore, family } = await this.load(assignmentId);
-    if (assignment.status !== 'pending') throw new UserFacingError('This chore is already taken care of.');
-    if (assignment.dueDate < this.deps.today()) throw new UserFacingError('This chore is past its day.');
-
-    const points = chorePoints(chore, family);
+    const when = this.actionTime(at);
     return this.deps.db.transaction(async () => {
+      await this.reopenIfDoneInTime(assignment, when);
+      if (assignment.status !== 'pending' && assignment.status !== 'missed') {
+        throw new UserFacingError('This chore is already taken care of.');
+      }
+      if (assignment.dueDate < dayKey(when)) throw new UserFacingError('This chore is past its day.');
+
+      const points = chorePoints(chore, family);
       await repos.assignments.setStatus(assignment.id, 'completed', {
-        completedAt: this.deps.timestamp(),
+        completedAt: localTimestamp(when),
         pointsAwarded: points,
       });
       await this.deps.addPoints(family.id, assignment.userId, 'earned', points, chore.name, assignment.id);
@@ -124,9 +132,10 @@ export class ChoreService {
     });
   }
 
-  async buyoutQuote(assignmentId: string): Promise<BuyoutQuote> {
+  async buyoutQuote(assignmentId: string, at?: Date): Promise<BuyoutQuote> {
     const { repos } = this.deps;
     const { assignment, chore, family } = await this.load(assignmentId);
+    const inTime = assignment.status === 'missed' && dayKey(this.actionTime(at)) <= assignment.dueDate;
     const cost = Math.max(1, Math.ceil((chorePoints(chore, family) * family.settings.buyoutCostPercentage) / 100));
     const balance = await repos.points.balance(assignment.userId);
     const month = monthBounds(this.deps.today());
@@ -134,17 +143,18 @@ export class ChoreService {
     const buyoutsLeftThisMonth = Math.max(0, family.settings.maxBuyoutsPerMonth - used);
 
     let reason: string | null = null;
-    if (assignment.status !== 'pending') reason = 'This chore is already taken care of.';
+    if (assignment.status !== 'pending' && !inTime) reason = 'This chore is already taken care of.';
     else if (buyoutsLeftThisMonth === 0) reason = 'No skips left this month.';
     else if (balance < cost) reason = `You need ${cost - balance} more points.`;
     return { cost, balance, buyoutsLeftThisMonth, allowed: reason === null, reason };
   }
 
-  async buyout(assignmentId: string): Promise<void> {
-    const quote = await this.buyoutQuote(assignmentId);
+  async buyout(assignmentId: string, at?: Date): Promise<void> {
+    const quote = await this.buyoutQuote(assignmentId, at);
     if (!quote.allowed) throw new UserFacingError(quote.reason ?? 'Cannot skip this chore.');
     const { assignment, chore, family } = await this.load(assignmentId);
     await this.deps.db.transaction(async () => {
+      await this.reopenIfDoneInTime(assignment, this.actionTime(at));
       await this.deps.repos.assignments.setStatus(assignment.id, 'bought_out', { pointsSpent: quote.cost });
       await this.deps.addPoints(family.id, assignment.userId, 'spent', -quote.cost, `Skipped: ${chore.name}`, assignment.id);
     });
@@ -161,6 +171,22 @@ export class ChoreService {
     const { assignment } = await this.load(assignmentId);
     if (assignment.status !== 'pending') throw new UserFacingError('Only chores not yet done can be moved.');
     await this.deps.repos.assignments.reassign(assignmentId, userId);
+  }
+
+  /** Clamp device clocks: an action can't be from the future. */
+  private actionTime(at?: Date): Date {
+    const now = this.deps.clock();
+    return at && at < now ? at : now;
+  }
+
+  /** The hub closed this as missed, but the kid did it on time on their own device. */
+  private async reopenIfDoneInTime(assignment: ChoreAssignment, when: Date): Promise<void> {
+    if (assignment.status !== 'missed' || dayKey(when) > assignment.dueDate) return;
+    for (const t of await this.deps.repos.points.findForAssignment(assignment.id)) {
+      if (t.type === 'penalty') await this.deps.repos.points.delete(t.id);
+    }
+    await this.deps.repos.assignments.setStatus(assignment.id, 'pending');
+    assignment.status = 'pending';
   }
 
   private async load(assignmentId: string): Promise<{ assignment: ChoreAssignment; chore: Chore; family: Family }> {

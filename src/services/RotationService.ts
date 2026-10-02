@@ -1,4 +1,3 @@
-import { uuid } from '../lib/crypto';
 import {
   addDays,
   daysInRange,
@@ -99,7 +98,7 @@ export class RotationService {
     const dueDates = chore.frequency === 'daily' ? workDays : [periodEnd];
     for (const dueDate of dueDates) {
       await this.deps.repos.assignments.insert({
-        id: uuid(),
+        id: assignmentId(chore.id, dueDate),
         familyId: family.id,
         choreId: chore.id,
         userId: assignee.id,
@@ -135,6 +134,14 @@ export class RotationService {
       }
     }
   }
+}
+
+/**
+ * Deterministic so the hub and a joined device that deal the same week offline agree on
+ * IDs, and actions taken on the device can be matched up on the hub later.
+ */
+export function assignmentId(choreId: string, dueDate: DayKey): string {
+  return `${choreId}:${dueDate}`;
 }
 
 export function pickAssignee(chore: Chore, members: User[], periodStart: DayKey): User | null {

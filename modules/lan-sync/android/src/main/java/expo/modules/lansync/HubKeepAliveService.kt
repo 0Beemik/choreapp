@@ -1,0 +1,64 @@
+package expo.modules.lansync
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
+import android.os.IBinder
+
+/**
+ * Keeps the app process (and so the sync server) alive after the hub app is closed, so kids'
+ * phones can still sync. Android limits this kind of service to about 6 hours a day on
+ * Android 15+; opening the app resets that.
+ */
+class HubKeepAliveService : Service() {
+  override fun onBind(intent: Intent?): IBinder? = null
+
+  override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    val title = intent?.getStringExtra("title") ?: "Family Chores"
+    val text = intent?.getStringExtra("text") ?: "Sharing chores with your family’s devices"
+    val manager = getSystemService(NotificationManager::class.java)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      manager.createNotificationChannel(
+        NotificationChannel(CHANNEL, "Family device sync", NotificationManager.IMPORTANCE_LOW),
+      )
+    }
+    val launch = packageManager.getLaunchIntentForPackage(packageName)?.let {
+      PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE)
+    }
+    val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL)
+    else @Suppress("DEPRECATION") Notification.Builder(this)
+    val notification = builder
+      .setContentTitle(title)
+      .setContentText(text)
+      .setSmallIcon(applicationInfo.icon)
+      .setOngoing(true)
+      .setContentIntent(launch)
+      .build()
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+      } else {
+        startForeground(NOTIFICATION_ID, notification)
+      }
+    } catch (e: Exception) {
+      // Android refuses foreground services started from the background; just stop quietly.
+      stopSelf()
+    }
+    return START_NOT_STICKY
+  }
+
+  /** Android 15+ calls this when the daily data-sync allowance runs out. */
+  override fun onTimeout(startId: Int, fgsType: Int) {
+    stopSelf()
+  }
+
+  companion object {
+    private const val CHANNEL = "family_device_sync"
+    private const val NOTIFICATION_ID = 4782
+  }
+}

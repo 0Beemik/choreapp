@@ -120,13 +120,18 @@ export default function Setup() {
         <>
           <Text style={{ fontSize: 56, textAlign: 'center' }}>🏡</Text>
           <Title>Welcome! Let’s get your family set up.</Title>
-          <Body muted>Takes about a minute. Everything stays on this device.</Body>
+          <Body muted>Takes about a minute. This becomes your family’s main device. Everything stays at home.</Body>
           <Field label="Family name" value={familyName} onChangeText={setFamilyName} placeholder="The Johnsons" autoFocus />
           <ErrorText>{error}</ErrorText>
           <Button
             title="Next"
             onPress={() => (familyName.trim().length < 2 ? setError('Family name needs at least 2 characters.') : go('parent'))}
           />
+          <Card style={{ marginTop: space.lg }}>
+            <Heading>Already using Family Chores on another phone?</Heading>
+            <Body muted>Put this phone or tablet on the same family, for example a kid’s own phone.</Body>
+            <Button title="Join my family" kind="secondary" onPress={() => router.push('/join')} style={{ marginTop: space.md }} />
+          </Card>
         </>
       )}
 

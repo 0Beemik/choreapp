@@ -1,0 +1,54 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:1:1-16:12
+INJECTED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:1:1-16:12
+	package
+		INJECTED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:1:11-69
+uses-permission#android.permission.INTERNET
+ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:2:3-65
+	android:name
+		ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:2:20-62
+uses-permission#android.permission.ACCESS_NETWORK_STATE
+ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:3:3-77
+	android:name
+		ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:3:20-74
+uses-permission#android.permission.ACCESS_WIFI_STATE
+ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:4:3-74
+	android:name
+		ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:4:20-71
+uses-permission#android.permission.CHANGE_WIFI_MULTICAST_STATE
+ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:5:3-84
+	android:name
+		ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:5:20-81
+uses-permission#android.permission.FOREGROUND_SERVICE
+ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:6:3-75
+	android:name
+		ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:6:20-72
+uses-permission#android.permission.FOREGROUND_SERVICE_DATA_SYNC
+ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:7:3-85
+	android:name
+		ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:7:20-82
+uses-permission#android.permission.POST_NOTIFICATIONS
+ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:8:3-75
+	android:name
+		ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:8:20-72
+application
+ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:10:3-15:17
+service#expo.modules.lansync.HubKeepAliveService
+ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:11:5-14:50
+	android:exported
+		ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:13:7-31
+	android:foregroundServiceType
+		ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:14:7-47
+	android:name
+		ADDED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml:12:7-62
+uses-sdk
+INJECTED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml
+INJECTED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /home/brent/Documents/Projects/choreapp/modules/lan-sync/android/src/main/AndroidManifest.xml

@@ -13,6 +13,7 @@ const MENU = [
   { href: '/parent/members', icon: '👨‍👩‍👧', title: 'Family', subtitle: 'Kids, parents, avatars, allowance' },
   { href: '/parent/points', icon: '⭐', title: 'Points & allowance', subtitle: 'Bonuses, corrections, history' },
   { href: '/parent/settings', icon: '⚙️', title: 'Settings', subtitle: 'Rules, vacation, PIN' },
+  { href: '/parent/devices', icon: '📱', title: 'Family devices', subtitle: 'Put chores on kids’ phones and tablets' },
 ] as const;
 
 export default function ParentHome() {

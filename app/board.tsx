@@ -8,12 +8,17 @@ import type { Chore, ChoreAssignment, User } from '@/src/models';
 import { UserFacingError } from '@/src/services';
 import { chorePoints } from '@/src/services/ChoreService';
 import { useApp } from '@/src/state/AppContext';
+import { useSync } from '@/src/state/SyncContext';
+import { SyncBar } from '@/src/ui/SyncBar';
 import { Celebration, type CelebrationInfo } from '@/src/ui/Celebration';
 import { Avatar, Body, Button, Card, Row, Screen } from '@/src/ui/components';
 import { colors, font, LITTLE_KID_MAX_AGE, radius, space } from '@/src/ui/theme';
 
 export default function BoardScreen() {
-  const { family, kids, chores, board, balances, services, refresh } = useApp();
+  const { family, kids: allKids, chores, board, balances, services, refresh } = useApp();
+  const { act, mode, link } = useSync();
+  // A kid's own phone shows just that kid; the main device and family tablets show everyone.
+  const kids = mode === 'member' && link?.userId ? allKids.filter((k) => k.id === link.userId) : allKids;
   const [celebration, setCelebration] = useState<CelebrationInfo | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -32,15 +37,16 @@ export default function BoardScreen() {
       await action();
     } catch (e) {
       Alert.alert('Hmm', e instanceof UserFacingError ? e.message : 'Something went wrong. Please try again.');
-    } finally {
       await refresh();
+    } finally {
       setBusyId(null);
     }
   };
 
   const complete = (kid: User, a: ChoreAssignment) =>
     run(a.id, async () => {
-      const result = await services.chores.complete(a.id);
+      const result = await act('complete', a.id);
+      if (!result) return;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
       setCelebration({ name: kid.name, points: result.pointsAwarded, badges: result.newBadges });
     });
@@ -48,7 +54,7 @@ export default function BoardScreen() {
   const confirmUndo = (a: ChoreAssignment, chore: Chore) =>
     Alert.alert('Not done after all?', `Put “${chore.name}” back on the list? The points will be taken back.`, [
       { text: 'Keep it done', style: 'cancel' },
-      { text: 'Undo', style: 'destructive', onPress: () => run(a.id, () => services.chores.undo(a.id)) },
+      { text: 'Undo', style: 'destructive', onPress: () => run(a.id, () => act('undo', a.id).then(() => undefined)) },
     ]);
 
   const offerSkip = async (a: ChoreAssignment, chore: Chore) => {
@@ -62,7 +68,7 @@ export default function BoardScreen() {
       `It costs ${q.cost} points. You’ll have ${q.balance - q.cost} left and ${q.buyoutsLeftThisMonth - 1} skips left this month.`,
       [
         { text: 'No, I’ll do it', style: 'cancel' },
-        { text: `Spend ${q.cost} points`, onPress: () => run(a.id, () => services.chores.buyout(a.id)) },
+        { text: `Spend ${q.cost} points`, onPress: () => run(a.id, () => act('skip', a.id).then(() => undefined)) },
       ],
     );
   };
@@ -79,10 +85,17 @@ export default function BoardScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel="Leaderboard" onPress={() => router.push('/leaderboard')} style={styles.iconBtn}>
           <Text style={styles.iconBtnText}>🏆</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Parent area" onPress={() => router.push('/parent')} style={styles.iconBtn}>
-          <Text style={styles.iconBtnText}>🔒</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={mode === 'member' ? 'Device settings' : 'Parent area'}
+          onPress={() => router.push('/parent')}
+          style={styles.iconBtn}
+        >
+          <Text style={styles.iconBtnText}>{mode === 'member' ? '⚙️' : '🔒'}</Text>
         </Pressable>
       </Row>
+
+      <SyncBar />
 
       {board.vacation ? (
         <Card style={{ backgroundColor: colors.successSoft, borderColor: colors.success }}>
