@@ -1,30 +1,16 @@
-import { dbConnection } from './connection';
-import { MigrationManager } from './migrations/MigrationManager';
-import { initialSchemaMigration } from './migrations/001_initial_schema';
-import { addBadgesMigration } from './migrations/002_add_badges';
-import { addAchievementsMigration } from './migrations/003_add_achievements';
-import { addFamilyRotationFieldsMigration } from './migrations/004_add_family_rotation_fields';
-import { addAvatarConfigMigration } from './migrations/005_add_avatar_config';
+import type { Db } from './connection';
+import { MIGRATIONS } from './schema';
 
-const migrations = [
-  initialSchemaMigration,
-  addBadgesMigration,
-  addAchievementsMigration,
-  addFamilyRotationFieldsMigration,
-  addAvatarConfigMigration,
-];
+export type { Db, SqlParam } from './connection';
 
-export const migrationManager = new MigrationManager(dbConnection, migrations);
-
-export async function initializeDatabase(): Promise<void> {
-  try {
-    await dbConnection.initialize();
-    await migrationManager.migrate();
-    
-  } catch (error) {
-    
-    // In a real app, you might want to show an error to the user
-    // or attempt to recover.
-    throw error;
+export async function migrate(db: Db): Promise<void> {
+  await db.exec('PRAGMA foreign_keys = ON;');
+  const row = await db.get<{ user_version: number }>('PRAGMA user_version;');
+  const current = row?.user_version ?? 0;
+  for (let v = current; v < MIGRATIONS.length; v++) {
+    await db.transaction(async () => {
+      await db.exec(MIGRATIONS[v]);
+      await db.exec(`PRAGMA user_version = ${v + 1};`);
+    });
   }
 }

@@ -1,50 +1,46 @@
-import { dbConnection } from '../database/connection';
-import { Badge } from '../models/Badge';
-import { BadgeCategory, Rarity } from '../types';
-import { BaseRepository, IBaseRepository } from './BaseRepository';
-
-export interface IBadgeRepository extends IBaseRepository<Badge> {
-  findByName(name: string): Promise<Badge | null>;
-}
+import type { Db } from '../database';
+import type { Badge, BadgeCriteria, UserBadge } from '../models';
 
 interface BadgeRow {
   id: string;
   name: string;
   description: string;
-  icon_path: string;
-  category: BadgeCategory;
-  criteria: string; // JSON string
+  icon: string;
+  criteria: string;
+  threshold: number;
   bonus_points: number;
-  rarity: Rarity;
-  is_active: number;
-  created_at: string;
 }
 
-export class BadgeRepository extends BaseRepository<Badge> implements IBadgeRepository {
-  protected tableName = 'badges';
+const toModel = (r: BadgeRow): Badge => ({
+  id: r.id,
+  name: r.name,
+  description: r.description,
+  icon: r.icon,
+  criteria: r.criteria as BadgeCriteria,
+  threshold: r.threshold,
+  bonusPoints: r.bonus_points,
+});
 
-  protected mapToModel(row: unknown): Badge {
-    const typedRow = row as BadgeRow;
-    return {
-      id: typedRow.id,
-      name: typedRow.name,
-      description: typedRow.description,
-      iconPath: typedRow.icon_path,
-      category: typedRow.category,
-      criteria: JSON.parse(typedRow.criteria),
-      bonusPoints: typedRow.bonus_points,
-      rarity: typedRow.rarity,
-      isActive: !!typedRow.is_active,
-      createdAt: new Date(typedRow.created_at),
-    };
+export class BadgeRepository {
+  constructor(private db: Db) {}
+
+  async all(): Promise<Badge[]> {
+    const rows = await this.db.all<BadgeRow>('SELECT * FROM badges ORDER BY sort_order');
+    return rows.map(toModel);
   }
 
-  async findByName(name: string): Promise<Badge | null> {
-    const sql = `SELECT * FROM ${this.tableName} WHERE name = ?;`;
-    const result = await dbConnection.query<BadgeRow>(sql, [name]);
-    if (result.length === 0) {
-      return null;
-    }
-    return this.mapToModel(result[0]);
+  async earned(userId: string): Promise<UserBadge[]> {
+    const rows = await this.db.all<{ user_id: string; badge_id: string; earned_at: string }>(
+      'SELECT * FROM user_badges WHERE user_id = ? ORDER BY earned_at',
+      [userId],
+    );
+    return rows.map((r) => ({ userId: r.user_id, badgeId: r.badge_id, earnedAt: r.earned_at }));
+  }
+
+  async award(userId: string, badgeId: string, earnedAt: string): Promise<void> {
+    await this.db.run(
+      'INSERT OR IGNORE INTO user_badges (user_id, badge_id, earned_at) VALUES (?, ?, ?)',
+      [userId, badgeId, earnedAt],
+    );
   }
 }

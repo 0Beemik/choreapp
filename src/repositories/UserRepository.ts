@@ -1,67 +1,64 @@
-import { User, UserPreferences } from '../models/User';
-import { BaseRepository, IBaseRepository } from './BaseRepository';
-import { UserRole } from '../types/enums';
-import { dbConnection } from '../database/connection';
-import { AvatarConfig } from '../types/avatar';
-
-export interface IUserRepository extends IBaseRepository<User> {
-  findByFamilyId(familyId: string): Promise<User[]>;
-}
+import type { Db } from '../database';
+import type { Role, User } from '../models';
 
 interface UserRow {
   id: string;
   family_id: string;
   name: string;
-  avatar_path?: string;
-  avatar_config?: string; // JSON string
   age: number;
-  role: UserRole;
-  is_admin: number;
+  role: string;
+  avatar_emoji: string;
+  avatar_color: string;
   allowance_rate: number;
-  preferences_notifications: number;
-  preferences_sound_effects: number;
-  preferences_interface_mode: string;
   created_at: string;
 }
 
-export class UserRepository extends BaseRepository<User> implements IUserRepository {
-  protected tableName = 'users';
+const toModel = (r: UserRow): User => ({
+  id: r.id,
+  familyId: r.family_id,
+  name: r.name,
+  age: r.age,
+  role: r.role as Role,
+  avatarEmoji: r.avatar_emoji,
+  avatarColor: r.avatar_color,
+  allowanceRate: r.allowance_rate,
+  createdAt: r.created_at,
+});
 
-  protected mapToModel(row: unknown): User {
-    const typedRow = row as UserRow;
+export class UserRepository {
+  constructor(private db: Db) {}
 
-    // Parse avatar_config JSON if present
-    let avatarConfig: AvatarConfig | undefined;
-    if (typedRow.avatar_config) {
-      try {
-        avatarConfig = JSON.parse(typedRow.avatar_config) as AvatarConfig;
-      } catch (error) {
-        console.error('Failed to parse avatar_config:', error);
-        avatarConfig = undefined;
-      }
-    }
-
-    return {
-      id: typedRow.id,
-      familyId: typedRow.family_id,
-      name: typedRow.name,
-      avatarConfig,
-      age: typedRow.age,
-      role: typedRow.role,
-      isAdmin: !!typedRow.is_admin,
-      allowanceRate: typedRow.allowance_rate,
-      createdAt: new Date(typedRow.created_at),
-      preferences: {
-        notifications: !!typedRow.preferences_notifications,
-        soundEffects: !!typedRow.preferences_sound_effects,
-        interfaceMode: typedRow.preferences_interface_mode,
-      } as UserPreferences,
-    };
+  async insert(u: User): Promise<void> {
+    await this.db.run(
+      `INSERT INTO users (id, family_id, name, age, role, avatar_emoji, avatar_color, allowance_rate, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [u.id, u.familyId, u.name, u.age, u.role, u.avatarEmoji, u.avatarColor, u.allowanceRate, u.createdAt],
+    );
   }
 
-  async findByFamilyId(familyId: string): Promise<User[]> {
-    const sql = `SELECT * FROM ${this.tableName} WHERE family_id = ?`;
-    const rows = await dbConnection.query(sql, [familyId]);
-    return rows.map(this.mapToModel);
+  async update(u: User): Promise<void> {
+    await this.db.run(
+      `UPDATE users SET name = ?, age = ?, role = ?, avatar_emoji = ?, avatar_color = ?, allowance_rate = ?
+       WHERE id = ?`,
+      [u.name, u.age, u.role, u.avatarEmoji, u.avatarColor, u.allowanceRate, u.id],
+    );
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.db.run('DELETE FROM users WHERE id = ?', [id]);
+  }
+
+  async findById(id: string): Promise<User | null> {
+    const row = await this.db.get<UserRow>('SELECT * FROM users WHERE id = ?', [id]);
+    return row ? toModel(row) : null;
+  }
+
+  async findByFamily(familyId: string): Promise<User[]> {
+    const rows = await this.db.all<UserRow>(
+      `SELECT * FROM users WHERE family_id = ?
+       ORDER BY CASE role WHEN 'child' THEN 0 ELSE 1 END, created_at`,
+      [familyId],
+    );
+    return rows.map(toModel);
   }
 }

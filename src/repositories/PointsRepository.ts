@@ -1,66 +1,97 @@
-import { PointTransaction } from '../models/PointTransaction';
-import { BaseRepository, IBaseRepository } from './BaseRepository';
-import { TransactionType } from '../types';
-import { dbConnection } from '../database/connection';
+import type { Db } from '../database';
+import type { DayKey } from '../lib/dates';
+import type { PointTransaction, TransactionType } from '../models';
 
-export interface IPointsRepository extends IBaseRepository<PointTransaction> {
-  getUserTotal(userId: string): Promise<number>;
-  findByUserId(userId: string, startDate?: Date, endDate?: Date): Promise<PointTransaction[]>;
-}
-
-interface PointTransactionRow {
+interface TransactionRow {
   id: string;
+  family_id: string;
   user_id: string;
-  assignment_id?: string;
-  transaction_type: TransactionType;
+  assignment_id: string | null;
+  type: string;
   amount: number;
-  reason?: string;
-  badge_earned?: string;
-  leaderboard_position?: number;
-  admin_override: number;
+  reason: string;
   created_at: string;
 }
 
-export class PointsRepository extends BaseRepository<PointTransaction> implements IPointsRepository {
-  protected tableName = 'point_transactions';
+const toModel = (r: TransactionRow): PointTransaction => ({
+  id: r.id,
+  familyId: r.family_id,
+  userId: r.user_id,
+  assignmentId: r.assignment_id,
+  type: r.type as TransactionType,
+  amount: r.amount,
+  reason: r.reason,
+  createdAt: r.created_at,
+});
 
-  protected mapToModel(row: unknown): PointTransaction {
-    const typedRow = row as PointTransactionRow;
-    return {
-      id: typedRow.id,
-      userId: typedRow.user_id,
-      assignmentId: typedRow.assignment_id,
-      transactionType: typedRow.transaction_type,
-      amount: typedRow.amount,
-      reason: typedRow.reason,
-      badgeEarned: typedRow.badge_earned,
-      leaderboardPosition: typedRow.leaderboard_position,
-      adminOverride: !!typedRow.admin_override,
-      createdAt: new Date(typedRow.created_at),
-    };
+// Points that count toward rankings and badges: what was earned, net of penalties.
+// Spending points on a buyout is a purchase, not a loss of standing.
+const SCORE_TYPES = `('earned', 'bonus', 'penalty', 'adjustment')`;
+
+export class PointsRepository {
+  constructor(private db: Db) {}
+
+  async insert(t: PointTransaction): Promise<void> {
+    await this.db.run(
+      `INSERT INTO point_transactions (id, family_id, user_id, assignment_id, type, amount, reason, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [t.id, t.familyId, t.userId, t.assignmentId, t.type, t.amount, t.reason, t.createdAt],
+    );
   }
 
-  async getUserTotal(userId: string): Promise<number> {
-    const sql = `SELECT SUM(amount) as total FROM ${this.tableName} WHERE user_id = ?`;
-    const result = await dbConnection.query<{ total: number }>(sql, [userId]);
-    return result[0]?.total || 0;
+  async balance(userId: string): Promise<number> {
+    const row = await this.db.get<{ total: number | null }>(
+      'SELECT SUM(amount) AS total FROM point_transactions WHERE user_id = ?',
+      [userId],
+    );
+    return row?.total ?? 0;
   }
 
-  async findByUserId(userId: string, startDate?: Date, endDate?: Date): Promise<PointTransaction[]> {
-    let sql = `SELECT * FROM ${this.tableName} WHERE user_id = ?`;
-    const params: (string | number)[] = [userId];
+  async balances(familyId: string): Promise<Record<string, number>> {
+    const rows = await this.db.all<{ user_id: string; total: number }>(
+      'SELECT user_id, SUM(amount) AS total FROM point_transactions WHERE family_id = ? GROUP BY user_id',
+      [familyId],
+    );
+    return Object.fromEntries(rows.map((r) => [r.user_id, r.total]));
+  }
 
-    if (startDate) {
-      sql += ' AND created_at >= ?';
-      params.push(startDate.toISOString());
-    }
+  async lifetimeEarned(userId: string): Promise<number> {
+    const row = await this.db.get<{ total: number | null }>(
+      `SELECT SUM(amount) AS total FROM point_transactions WHERE user_id = ? AND type IN ('earned', 'bonus')`,
+      [userId],
+    );
+    return row?.total ?? 0;
+  }
 
-    if (endDate) {
-      sql += ' AND created_at <= ?';
-      params.push(endDate.toISOString());
-    }
+  /** Score per user between two local days (inclusive); omit `from` for all time. */
+  async scores(familyId: string, from: DayKey | null, to: DayKey): Promise<Record<string, number>> {
+    const rows = await this.db.all<{ user_id: string; total: number }>(
+      `SELECT user_id, SUM(amount) AS total FROM point_transactions
+       WHERE family_id = ? AND type IN ${SCORE_TYPES}
+         AND substr(created_at, 1, 10) >= ? AND substr(created_at, 1, 10) <= ?
+       GROUP BY user_id`,
+      [familyId, from ?? '0000-00-00', to],
+    );
+    return Object.fromEntries(rows.map((r) => [r.user_id, r.total]));
+  }
 
-    const rows = await dbConnection.query(sql, params);
-    return rows.map(this.mapToModel);
+  async history(userId: string, limit = 50): Promise<PointTransaction[]> {
+    const rows = await this.db.all<TransactionRow>(
+      'SELECT * FROM point_transactions WHERE user_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?',
+      [userId, limit],
+    );
+    return rows.map(toModel);
+  }
+
+  async findForAssignment(assignmentId: string): Promise<PointTransaction[]> {
+    const rows = await this.db.all<TransactionRow>(
+      'SELECT * FROM point_transactions WHERE assignment_id = ?',
+      [assignmentId],
+    );
+    return rows.map(toModel);
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.db.run('DELETE FROM point_transactions WHERE id = ?', [id]);
   }
 }
