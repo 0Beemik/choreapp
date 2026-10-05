@@ -45,3 +45,7 @@ app-example
 
 # test output
 coverage/
+
+# Gradle output inside local native modules
+modules/*/android/build/
+modules/*/android/.gradle/

@@ -1,16 +1,22 @@
 import { router, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useApp } from '@/src/state/AppContext';
+import { useSync } from '@/src/state/SyncContext';
+import { MemberDeviceSettings } from '@/src/ui/MemberDeviceSettings';
 import { Button, Screen } from '@/src/ui/components';
 import { PinPad } from '@/src/ui/PinPad';
 import { colors } from '@/src/ui/theme';
 
 export default function ParentLayout() {
   const { parentUnlocked, unlockParent, lockParent } = useApp();
+  const { mode } = useSync();
   const [error, setError] = useState<string | null>(null);
 
   // Leaving the parent area any way at all (back button, gesture) locks it again.
   useEffect(() => lockParent, [lockParent]);
+
+  // Parent tools live on the family's main device; joined devices get their own settings.
+  if (mode === 'member') return <MemberDeviceSettings />;
 
   if (!parentUnlocked) {
     return (
@@ -46,6 +52,7 @@ export default function ParentLayout() {
       <Stack.Screen name="chore" options={{ title: 'Chore' }} />
       <Stack.Screen name="points" options={{ title: 'Points & allowance' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+      <Stack.Screen name="devices" options={{ title: 'Family devices' }} />
     </Stack>
   );
 }

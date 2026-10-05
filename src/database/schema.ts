@@ -113,4 +113,57 @@ export const MIGRATIONS: string[] = [
     ('perfect_week', 'Perfect Week',   'Finish every chore in a week',          '⭐', 'perfect_week',    1,   10, 9),
     ('weekly_winner','Top of the Week','Earn the most points in a week',        '🥇', 'weekly_winner',   1,   10, 10);
   `,
+  `
+  -- Home-network sync (v2). Every change to family data bumps a version number so devices
+  -- only re-download when something actually changed.
+  CREATE TABLE sync_meta (key TEXT PRIMARY KEY NOT NULL, value INTEGER NOT NULL);
+  INSERT INTO sync_meta (key, value) VALUES ('version', 0);
+  CREATE TRIGGER sync_bump_families_insert AFTER INSERT ON families BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_families_update AFTER UPDATE ON families BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_families_delete AFTER DELETE ON families BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_users_insert AFTER INSERT ON users BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_users_update AFTER UPDATE ON users BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_users_delete AFTER DELETE ON users BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_chores_insert AFTER INSERT ON chores BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_chores_update AFTER UPDATE ON chores BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_chores_delete AFTER DELETE ON chores BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_chore_assignments_insert AFTER INSERT ON chore_assignments BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_chore_assignments_update AFTER UPDATE ON chore_assignments BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_chore_assignments_delete AFTER DELETE ON chore_assignments BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_point_transactions_insert AFTER INSERT ON point_transactions BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_point_transactions_update AFTER UPDATE ON point_transactions BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_point_transactions_delete AFTER DELETE ON point_transactions BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_user_badges_insert AFTER INSERT ON user_badges BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_user_badges_update AFTER UPDATE ON user_badges BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_user_badges_delete AFTER DELETE ON user_badges BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_vacations_insert AFTER INSERT ON vacations BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_vacations_update AFTER UPDATE ON vacations BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_vacations_delete AFTER DELETE ON vacations BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+
+  -- Hub: devices that joined this family with a pairing code.
+  CREATE TABLE paired_devices (
+    id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    last_seen_at TEXT
+  );
+
+  -- Hub: actions already applied, so a retried sync never counts a chore twice.
+  CREATE TABLE applied_actions (
+    id TEXT PRIMARY KEY NOT NULL,
+    device_id TEXT NOT NULL,
+    ok INTEGER NOT NULL,
+    message TEXT,
+    applied_at TEXT NOT NULL
+  );
+
+  -- Joined device: actions taken here that the hub has not confirmed yet.
+  CREATE TABLE sync_outbox (
+    id TEXT PRIMARY KEY NOT NULL,
+    payload TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  `,
 ];
