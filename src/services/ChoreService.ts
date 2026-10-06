@@ -1,6 +1,6 @@
 import { uuid } from '../lib/crypto';
 import { dayKey, localTimestamp, monthBounds } from '../lib/dates';
-import type { Badge, Chore, ChoreAssignment, ChoreFrequency, Family } from '../models';
+import type { Badge, Chore, ChoreAssignment, ChoreFrequency, Family, TimeOfDay } from '../models';
 import type { BadgeService } from './BadgeService';
 import { UserFacingError, type Deps } from './deps';
 import type { RotationService } from './RotationService';
@@ -10,7 +10,9 @@ export interface ChoreInput {
   icon: string;
   frequency: ChoreFrequency;
   points: number | null;
-  fixedUserId: string | null;
+  /** Empty = rotates weekly. */
+  assigneeIds: string[];
+  timeOfDay: TimeOfDay;
 }
 
 export interface CompletionResult {
@@ -51,7 +53,8 @@ export class ChoreService {
       icon: input.icon,
       frequency: input.frequency,
       points: input.points,
-      fixedUserId: input.fixedUserId,
+      assigneeIds: input.assigneeIds,
+      timeOfDay: input.timeOfDay,
       rotationOffset: await this.deps.repos.chores.nextRotationOffset(familyId),
       isActive: true,
       createdAt: this.deps.timestamp(),
@@ -170,6 +173,10 @@ export class ChoreService {
   async reassign(assignmentId: string, userId: string): Promise<void> {
     const { assignment } = await this.load(assignmentId);
     if (assignment.status !== 'pending') throw new UserFacingError('Only chores not yet done can be moved.');
+    const week = await this.deps.repos.assignments.findByPeriod(assignment.familyId, assignment.periodStart);
+    if (week.some((a) => a.choreId === assignment.choreId && a.dueDate === assignment.dueDate && a.userId === userId)) {
+      throw new UserFacingError('They already have this chore that day.');
+    }
     await this.deps.repos.assignments.reassign(assignmentId, userId);
   }
 

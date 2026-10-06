@@ -1,5 +1,5 @@
 // Wire format between a joined device and the hub. Bump PROTOCOL_VERSION on breaking changes.
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 3;
 export const SERVICE_TYPE = 'familychores';
 export const DEFAULT_PORT = 47821;
 

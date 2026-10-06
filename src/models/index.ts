@@ -36,6 +36,12 @@ export interface User {
 
 export type ChoreFrequency = 'daily' | 'weekly';
 
+/** Part of the day a chore belongs to. 'any' = all day. */
+export type TimeOfDay = 'any' | 'morning' | 'afternoon' | 'evening';
+
+/** Order chores appear in on the board; all-day ones last. */
+export const TIMES_OF_DAY: TimeOfDay[] = ['morning', 'afternoon', 'evening', 'any'];
+
 export interface Chore {
   id: string;
   familyId: string;
@@ -44,8 +50,9 @@ export interface Chore {
   frequency: ChoreFrequency;
   /** null = use the family's pointsPerChore. */
   points: number | null;
-  /** null = rotates weekly between kids. */
-  fixedUserId: string | null;
+  /** Family members (kids or parents) who each do their own copy. Empty = rotates weekly between kids. */
+  assigneeIds: string[];
+  timeOfDay: TimeOfDay;
   /** Spreads rotating chores across kids within the same week. */
   rotationOffset: number;
   isActive: boolean;

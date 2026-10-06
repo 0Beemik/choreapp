@@ -1,6 +1,6 @@
 import { uuid } from '../lib/crypto';
 import { addDays, monthBounds, periodEndFor, periodStartFor, type DayKey } from '../lib/dates';
-import type { ChoreAssignment, LeaderboardRow, PointTransaction, Vacation } from '../models';
+import { TIMES_OF_DAY, type ChoreAssignment, type LeaderboardRow, type PointTransaction, type Vacation } from '../models';
 import { UserFacingError, type Deps } from './deps';
 
 export type LeaderboardRange = 'week' | 'month' | 'all';
@@ -89,7 +89,8 @@ export interface Board {
   periodEnd: DayKey;
   today: DayKey;
   vacation: Vacation | null;
-  /** What each kid should see now: today's daily chores plus this week's weekly chores. */
+  /** What each kid should see now: today's daily chores plus this week's weekly chores,
+   * in board order (morning → afternoon → evening → all day, to-do before done). */
   byUser: Record<string, ChoreAssignment[]>;
 }
 
@@ -114,8 +115,13 @@ export class BoardService {
       if (!visible || a.status === 'excused') continue;
       (byUser[a.userId] ??= []).push(a);
     }
+    const slot = new Map(chores.map((c) => [c.id, TIMES_OF_DAY.indexOf(c.timeOfDay)]));
     for (const list of Object.values(byUser)) {
-      list.sort((x, y) => Number(x.status !== 'pending') - Number(y.status !== 'pending'));
+      list.sort(
+        (x, y) =>
+          (slot.get(x.choreId) ?? 0) - (slot.get(y.choreId) ?? 0) ||
+          Number(x.status !== 'pending') - Number(y.status !== 'pending'),
+      );
     }
     return { periodStart, periodEnd: periodEndFor(periodStart), today, vacation: vacations[0] ?? null, byUser };
   }

@@ -12,7 +12,7 @@ import { colors, font } from '@/src/ui/theme';
 type Step = 'find' | 'code' | 'who';
 
 export default function Join() {
-  const { services, kids } = useApp();
+  const { services, members } = useApp();
   const { supported, join, chooseUser } = useSync();
   const [step, setStep] = useState<Step>('find');
   const [scanning, setScanning] = useState(supported);
@@ -87,9 +87,9 @@ export default function Join() {
     return (
       <Screen>
         <Title>Who uses this device?</Title>
-        <Body muted>A kid’s own device shows only their chores.</Body>
+        <Body muted>Someone’s own device shows only their chores.</Body>
         <Card>
-          {kids.map((k) => (
+          {members.map((k) => (
             <ListItem key={k.id} left={<Avatar user={k} size={44} />} title={k.name} subtitle={`${k.name}’s phone or tablet`} onPress={() => pick(k.id)} />
           ))}
           <ListItem

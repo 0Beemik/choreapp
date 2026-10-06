@@ -2,7 +2,8 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Text } from 'react-native';
 import { formatDay } from '@/src/lib/dates';
-import type { ChoreAssignment } from '@/src/models';
+import { TIME_OF_DAY_LABELS } from '@/src/lib/presets';
+import { TIMES_OF_DAY, type ChoreAssignment } from '@/src/models';
 import { UserFacingError } from '@/src/services';
 import { useApp } from '@/src/state/AppContext';
 import { Avatar, Body, Card, Heading, ListItem, Screen } from '@/src/ui/components';
@@ -17,7 +18,7 @@ const STATUS = {
 } as const;
 
 export default function Week() {
-  const { family, members, kids, chores, services, refresh } = useApp();
+  const { family, members, chores, services, refresh } = useApp();
   const [items, setItems] = useState<ChoreAssignment[]>([]);
 
   const load = useCallback(async () => {
@@ -52,7 +53,7 @@ export default function Week() {
     const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [];
     if (a.status === 'pending' && open) {
       buttons.push({ text: 'Mark done', onPress: () => act(() => services.chores.complete(a.id)) });
-      for (const k of kids.filter((k) => k.id !== a.userId)) {
+      for (const k of members.filter((m) => m.id !== a.userId)) {
         buttons.push({ text: `Give to ${k.name}`, onPress: () => act(() => services.chores.reassign(a.id, k.id)) });
       }
     }
@@ -71,6 +72,7 @@ export default function Week() {
   };
 
   const days = [...new Set(items.map((a) => a.dueDate))].sort();
+  const slotOf = (a: ChoreAssignment) => TIMES_OF_DAY.indexOf(choreById.get(a.choreId)?.timeOfDay ?? 'any');
   return (
     <Screen>
       {items.length === 0 ? <Body muted>No chores this week yet.</Body> : null}
@@ -82,6 +84,7 @@ export default function Week() {
           </Heading>
           {items
             .filter((a) => a.dueDate === d)
+            .sort((x, y) => slotOf(x) - slotOf(y))
             .map((a) => {
               const chore = choreById.get(a.choreId);
               const kid = userById.get(a.userId);
@@ -91,7 +94,7 @@ export default function Week() {
                   key={a.id}
                   left={kid ? <Avatar user={kid} size={36} /> : undefined}
                   title={`${chore?.icon ?? ''} ${chore?.name ?? 'Removed chore'}`}
-                  subtitle={kid?.name}
+                  subtitle={[kid?.name, chore && chore.timeOfDay !== 'any' ? TIME_OF_DAY_LABELS[chore.timeOfDay] : null].filter(Boolean).join(' · ')}
                   right={<Text style={{ color: s.color, fontWeight: '700' }}>{s.label}</Text>}
                   onPress={() => manage(a)}
                 />

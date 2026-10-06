@@ -66,7 +66,7 @@ export class FamilyService {
       await this.addMember(family.id, { ...input.parent, role: 'parent' });
       for (const kid of input.kids) await this.addMember(family.id, { ...kid, role: 'child' });
       for (const c of input.chores) {
-        await this.chores.add(family.id, { ...c, points: null, fixedUserId: null });
+        await this.chores.add(family.id, { ...c, points: null, assigneeIds: [], timeOfDay: c.timeOfDay ?? 'any' });
       }
       await this.rotation.ensureCurrentPeriod(family.id);
     });

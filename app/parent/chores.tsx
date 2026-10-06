@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { Text } from 'react-native';
+import { TIME_OF_DAY_LABELS } from '@/src/lib/presets';
 import { chorePoints } from '@/src/services/ChoreService';
 import { useApp } from '@/src/state/AppContext';
 import { Body, Button, Card, ListItem, Screen } from '@/src/ui/components';
@@ -8,7 +9,12 @@ import { colors, font } from '@/src/ui/theme';
 export default function Chores() {
   const { family, chores, members } = useApp();
   if (!family) return null;
-  const nameOf = (id: string | null) => members.find((m) => m.id === id)?.name;
+  const whoDoesIt = (ids: string[]) => {
+    if (ids.length === 0) return 'Rotates weekly';
+    const names = members.filter((m) => ids.includes(m.id)).map((m) => m.name);
+    if (names.length === 0) return '—';
+    return names.length === 1 ? `Always ${names[0]}` : `Each does their own: ${names.join(', ')}`;
+  };
   return (
     <Screen>
       <Button title="Add a chore" onPress={() => router.push('/parent/chore')} />
@@ -22,8 +28,9 @@ export default function Chores() {
               title={c.name}
               subtitle={[
                 c.frequency === 'daily' ? 'Every day' : 'Once a week',
+                ...(c.timeOfDay !== 'any' ? [TIME_OF_DAY_LABELS[c.timeOfDay]] : []),
                 `${chorePoints(c, family)} pts`,
-                c.fixedUserId ? `Always ${nameOf(c.fixedUserId) ?? '—'}` : 'Rotates weekly',
+                whoDoesIt(c.assigneeIds),
               ].join(' · ')}
               right={<Text style={{ color: colors.textMuted, fontSize: font.large }}>›</Text>}
               onPress={() => router.push({ pathname: '/parent/chore', params: { id: c.id } })}

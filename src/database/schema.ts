@@ -166,4 +166,46 @@ export const MIGRATIONS: string[] = [
     created_at TEXT NOT NULL
   );
   `,
+  `
+  -- v3: a chore can be given to several kids at once (each does their own, e.g. "Make bed").
+  -- assignee_ids is a JSON array of user ids; [] = rotates weekly. fixed_user_id is retired.
+  ALTER TABLE chores ADD COLUMN assignee_ids TEXT NOT NULL DEFAULT '[]';
+  UPDATE chores SET assignee_ids = '["' || fixed_user_id || '"]', fixed_user_id = NULL
+    WHERE fixed_user_id IS NOT NULL;
+
+  -- One row per chore per kid per day, so the unique key needs user_id. SQLite cannot alter
+  -- a constraint, so rebuild the table (migrate() turns foreign keys off around this).
+  CREATE TABLE chore_assignments_new (
+    id TEXT PRIMARY KEY NOT NULL,
+    family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+    chore_id TEXT NOT NULL REFERENCES chores(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    period_start TEXT NOT NULL,
+    due_date TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending'
+      CHECK (status IN ('pending', 'completed', 'bought_out', 'missed', 'excused')),
+    completed_at TEXT,
+    points_awarded INTEGER NOT NULL DEFAULT 0,
+    points_spent INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    UNIQUE (chore_id, user_id, due_date)
+  );
+  INSERT INTO chore_assignments_new
+    (id, family_id, chore_id, user_id, period_start, due_date, status, completed_at, points_awarded, points_spent, created_at)
+    SELECT id, family_id, chore_id, user_id, period_start, due_date, status, completed_at, points_awarded, points_spent, created_at
+    FROM chore_assignments;
+  DROP TABLE chore_assignments;
+  ALTER TABLE chore_assignments_new RENAME TO chore_assignments;
+  CREATE INDEX idx_assignments_family_period ON chore_assignments(family_id, period_start);
+  CREATE INDEX idx_assignments_user ON chore_assignments(user_id, status);
+  CREATE TRIGGER sync_bump_chore_assignments_insert AFTER INSERT ON chore_assignments BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_chore_assignments_update AFTER UPDATE ON chore_assignments BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_chore_assignments_delete AFTER DELETE ON chore_assignments BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  UPDATE sync_meta SET value = value + 1 WHERE key = 'version';
+  `,
+  `
+  -- v4: chores belong to a part of the day so the board can split Morning / Afternoon / Evening.
+  ALTER TABLE chores ADD COLUMN time_of_day TEXT NOT NULL DEFAULT 'any'
+    CHECK (time_of_day IN ('any', 'morning', 'afternoon', 'evening'));
+  `,
 ];

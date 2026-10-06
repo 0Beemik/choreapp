@@ -215,7 +215,7 @@ describe('syncing chores', () => {
   });
 
   it('brings parent changes on the hub to the phone', async () => {
-    await hubSvc.chores.add(family.id, { name: 'Walk dog', icon: '🐕', frequency: 'daily', points: 5, fixedUserId: ava.id });
+    await hubSvc.chores.add(family.id, { name: 'Walk dog', icon: '🐕', frequency: 'daily', points: 5, assigneeIds: [ava.id], timeOfDay: 'any' });
     await phone.sync();
     expect((await phoneSvc.chores.list(family.id)).map((c) => c.name)).toContain('Walk dog');
   });

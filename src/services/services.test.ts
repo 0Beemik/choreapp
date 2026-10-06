@@ -226,12 +226,56 @@ describe('parents managing the family', () => {
   it('adds a chore mid-week for the remaining days only', async () => {
     await setup([]);
     setNow(2026, 10, 7);
-    await s.chores.add(family.id, { name: 'Feed fish', icon: '🐟', frequency: 'daily', points: 5, fixedUserId: ben.id });
+    await s.chores.add(family.id, { name: 'Feed fish', icon: '🐟', frequency: 'daily', points: 5, assigneeIds: [ben.id], timeOfDay: 'any' });
     const week = await s.deps.repos.assignments.findByPeriod(family.id, '2026-10-04');
     expect(week.map((a) => a.dueDate)).toEqual(['2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10']);
     expect(week.every((a) => a.userId === ben.id)).toBe(true);
     const r = await s.chores.complete(week[0].id);
     expect(r.pointsAwarded).toBe(5);
+  });
+
+  it('gives a chore to several kids, each doing their own', async () => {
+    await setup([]);
+    const chore = await s.chores.add(family.id, { name: 'Make bed', icon: '🛏️', frequency: 'daily', points: 5, assigneeIds: [ava.id, ben.id], timeOfDay: 'morning' });
+    const week = await s.deps.repos.assignments.findByPeriod(family.id, '2026-10-04');
+    expect(week.filter((a) => a.userId === ava.id)).toHaveLength(7);
+    expect(week.filter((a) => a.userId === ben.id)).toHaveLength(7);
+
+    // Ava doing hers leaves Ben's untouched.
+    const avaToday = week.find((a) => a.userId === ava.id && a.dueDate === '2026-10-04')!;
+    const benToday = week.find((a) => a.userId === ben.id && a.dueDate === '2026-10-04')!;
+    await s.chores.complete(avaToday.id);
+    expect((await s.deps.repos.assignments.findById(benToday.id))?.status).toBe('pending');
+    await expect(s.chores.reassign(benToday.id, ava.id)).rejects.toThrow('already have this chore');
+
+    // Back to just Ben: Ava's done one stays, her upcoming ones go.
+    await s.chores.update(chore.id, { name: 'Make bed', icon: '🛏️', frequency: 'daily', points: 5, assigneeIds: [ben.id], timeOfDay: 'any' });
+    const after = await s.deps.repos.assignments.findByPeriod(family.id, '2026-10-04');
+    expect(after.filter((a) => a.userId === ava.id).map((a) => a.status)).toEqual(['completed']);
+    expect(after.filter((a) => a.userId === ben.id)).toHaveLength(7);
+    expect((await s.chores.list(family.id))[0].assigneeIds).toEqual([ben.id]);
+  });
+
+  it('parents can be given chores too', async () => {
+    await setup([]);
+    await s.chores.add(family.id, { name: 'Mow lawn', icon: '🚜', frequency: 'weekly', points: null, assigneeIds: [parent.id], timeOfDay: 'any' });
+    expect((await boardFor(parent)).length).toBe(1);
+    expect(await boardFor(ava)).toHaveLength(0);
+    expect(await boardFor(ben)).toHaveLength(0);
+  });
+
+  it('orders the board morning, afternoon, evening, then all day', async () => {
+    await setup([]);
+    const add = (name: string, timeOfDay: 'any' | 'morning' | 'afternoon' | 'evening') =>
+      s.chores.add(family.id, { name, icon: '✨', frequency: 'daily', points: null, assigneeIds: [ava.id], timeOfDay });
+    await add('Anytime', 'any');
+    await add('Dishes (evening)', 'evening');
+    await add('Make bed', 'morning');
+    await add('Homework', 'afternoon');
+    const names = new Map((await s.chores.list(family.id)).map((c) => [c.id, c.name]));
+    const board = await boardFor(ava);
+    expect(board.map((a) => names.get(a.choreId))).toEqual(['Make bed', 'Homework', 'Dishes (evening)', 'Anytime']);
+    expect((await s.chores.list(family.id)).find((c) => c.name === 'Make bed')?.timeOfDay).toBe('morning');
   });
 
   it('removing a chore clears its upcoming work but keeps history', async () => {

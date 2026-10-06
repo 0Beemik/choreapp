@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AdBanner } from '@/src/ads/AdBanner';
 import { formatDay } from '@/src/lib/dates';
+import { TIME_OF_DAY_LABELS } from '@/src/lib/presets';
 import type { Chore, ChoreAssignment, User } from '@/src/models';
 import { UserFacingError } from '@/src/services';
 import { chorePoints } from '@/src/services/ChoreService';
@@ -15,10 +16,14 @@ import { Avatar, Body, Button, Card, Row, Screen } from '@/src/ui/components';
 import { colors, font, LITTLE_KID_MAX_AGE, radius, space } from '@/src/ui/theme';
 
 export default function BoardScreen() {
-  const { family, kids: allKids, chores, board, balances, services, refresh } = useApp();
+  const { family, members, kids: allKids, chores, board, balances, services, refresh } = useApp();
   const { act, mode, link } = useSync();
-  // A kid's own phone shows just that kid; the main device and family tablets show everyone.
-  const kids = mode === 'member' && link?.userId ? allKids.filter((k) => k.id === link.userId) : allKids;
+  // Someone's own phone shows just them; the main device and family tablets show every kid,
+  // plus any parent who has chores today (e.g. Mow lawn → Dad).
+  const kids =
+    mode === 'member' && link?.userId
+      ? members.filter((m) => m.id === link.userId)
+      : [...allKids, ...members.filter((m) => m.role !== 'child' && (board?.byUser[m.id]?.length ?? 0) > 0)];
   const [celebration, setCelebration] = useState<CelebrationInfo | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -125,21 +130,32 @@ export default function BoardScreen() {
             </Pressable>
 
             <View style={{ gap: space.sm, marginTop: space.md }}>
-              {list.map((a) => {
+              {list.map((a, i) => {
                 const chore = choreById.get(a.choreId);
                 if (!chore) return null;
+                // The list arrives sorted by part of the day; label each group, but skip the
+                // labels when everything is all-day.
+                const prev = i > 0 ? choreById.get(list[i - 1].choreId) : undefined;
+                const split = list.some((x) => choreById.get(x.choreId)?.timeOfDay !== 'any');
+                const showHeader = split && prev?.timeOfDay !== chore.timeOfDay;
                 return (
-                  <ChoreRow
-                    key={a.id}
-                    assignment={a}
-                    chore={chore}
-                    points={chorePoints(chore, family)}
-                    little={little}
-                    busy={busyId === a.id}
-                    onComplete={() => complete(kid, a)}
-                    onUndo={() => confirmUndo(a, chore)}
-                    onSkip={little ? undefined : () => offerSkip(a, chore)}
-                  />
+                  <View key={a.id} style={{ gap: space.sm }}>
+                    {showHeader ? (
+                      <Text style={[styles.slot, little && { fontSize: font.body }]}>
+                        {SLOT_ICONS[chore.timeOfDay]} {TIME_OF_DAY_LABELS[chore.timeOfDay]}
+                      </Text>
+                    ) : null}
+                    <ChoreRow
+                      assignment={a}
+                      chore={chore}
+                      points={chorePoints(chore, family)}
+                      little={little}
+                      busy={busyId === a.id}
+                      onComplete={() => complete(kid, a)}
+                      onUndo={() => confirmUndo(a, chore)}
+                      onSkip={little ? undefined : () => offerSkip(a, chore)}
+                    />
+                  </View>
                 );
               })}
             </View>
@@ -163,6 +179,8 @@ export default function BoardScreen() {
     </Screen>
   );
 }
+
+const SLOT_ICONS = { morning: '🌅', afternoon: '☀️', evening: '🌙', any: '🕑' } as const;
 
 function ChoreRow({
   assignment,
@@ -236,6 +254,7 @@ const styles = StyleSheet.create({
   iconBtnText: { fontSize: 22 },
   kidName: { fontSize: font.large, fontWeight: '800', color: colors.text },
   kidSub: { color: colors.textMuted, fontSize: font.small },
+  slot: { color: colors.textMuted, fontSize: font.small, fontWeight: '800', textTransform: 'uppercase', marginTop: space.xs },
   points: { backgroundColor: '#FFF4CC', borderRadius: radius.pill, paddingHorizontal: space.md, paddingVertical: space.xs },
   pointsText: { fontWeight: '800', color: '#8A6500', fontSize: font.body },
   chore: {

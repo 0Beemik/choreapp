@@ -87,8 +87,8 @@ export class RotationService {
     periodStart: DayKey,
     fromDay: DayKey,
   ): Promise<void> {
-    const assignee = pickAssignee(chore, members, periodStart);
-    if (!assignee) return;
+    const assignees = pickAssignees(chore, members, periodStart);
+    if (assignees.length === 0) return;
 
     const periodEnd = periodEndFor(periodStart);
     const start = fromDay > periodStart ? fromDay : periodStart;
@@ -96,20 +96,22 @@ export class RotationService {
     if (workDays.length === 0) return;
 
     const dueDates = chore.frequency === 'daily' ? workDays : [periodEnd];
-    for (const dueDate of dueDates) {
-      await this.deps.repos.assignments.insert({
-        id: assignmentId(chore.id, dueDate),
-        familyId: family.id,
-        choreId: chore.id,
-        userId: assignee.id,
-        periodStart,
-        dueDate,
-        status: 'pending',
-        completedAt: null,
-        pointsAwarded: 0,
-        pointsSpent: 0,
-        createdAt: this.deps.timestamp(),
-      });
+    for (const assignee of assignees) {
+      for (const dueDate of dueDates) {
+        await this.deps.repos.assignments.insert({
+          id: assignmentId(chore.id, assignee.id, dueDate),
+          familyId: family.id,
+          choreId: chore.id,
+          userId: assignee.id,
+          periodStart,
+          dueDate,
+          status: 'pending',
+          completedAt: null,
+          pointsAwarded: 0,
+          pointsSpent: 0,
+          createdAt: this.deps.timestamp(),
+        });
+      }
     }
   }
 
@@ -140,18 +142,20 @@ export class RotationService {
  * Deterministic so the hub and a joined device that deal the same week offline agree on
  * IDs, and actions taken on the device can be matched up on the hub later.
  */
-export function assignmentId(choreId: string, dueDate: DayKey): string {
-  return `${choreId}:${dueDate}`;
+export function assignmentId(choreId: string, userId: string, dueDate: DayKey): string {
+  return `${choreId}:${userId}:${dueDate}`;
 }
 
-export function pickAssignee(chore: Chore, members: User[], periodStart: DayKey): User | null {
-  if (chore.fixedUserId) {
-    return members.find((m) => m.id === chore.fixedUserId) ?? null;
+/** Everyone the chore is given to, or this week's kid in the rotation. */
+export function pickAssignees(chore: Chore, members: User[], periodStart: DayKey): User[] {
+  if (chore.assigneeIds.length > 0) {
+    // Members who have since been removed simply drop out.
+    return members.filter((m) => chore.assigneeIds.includes(m.id));
   }
   const kids = members.filter((m) => m.role === 'child');
   const pool = kids.length > 0 ? kids : members;
-  if (pool.length === 0) return null;
-  return pool[(weekIndex(periodStart) + chore.rotationOffset) % pool.length];
+  if (pool.length === 0) return [];
+  return [pool[(weekIndex(periodStart) + chore.rotationOffset) % pool.length]];
 }
 
 function onVacation(day: DayKey, vacations: Vacation[]): boolean {

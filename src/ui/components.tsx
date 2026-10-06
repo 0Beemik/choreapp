@@ -179,6 +179,52 @@ export function Choice<T extends string | number>({
   );
 }
 
+/** Like Choice, but any number of options can be on at once. */
+export function MultiChoice<T extends string | number>({
+  options,
+  values,
+  onToggle,
+  label,
+  hint,
+}: {
+  options: { value: T; label: string }[];
+  values: T[];
+  onToggle: (v: T) => void;
+  label?: string;
+  /** Shown after the label, e.g. "(pick as many as you need)". */
+  hint?: string;
+}) {
+  return (
+    <View style={{ marginBottom: space.md }}>
+      {label ? (
+        <Text style={styles.label}>
+          {label}
+          {hint ? <Text style={styles.labelHint}> {hint}</Text> : null}
+        </Text>
+      ) : null}
+      <View style={styles.choiceRow}>
+        {options.map((o) => {
+          const selected = values.includes(o.value);
+          return (
+            <Pressable
+              key={String(o.value)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: selected }}
+              onPress={() => onToggle(o.value)}
+              style={[styles.choice, selected && styles.choiceSelected]}
+            >
+              <Text style={[styles.choiceText, selected && { color: colors.primaryText }]}>
+                {selected ? '✓ ' : ''}
+                {o.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 export function EmojiPicker({
   options,
   value,
@@ -275,6 +321,7 @@ export const styles = StyleSheet.create({
   heading: { fontSize: font.large, fontWeight: '700', color: colors.text, marginBottom: space.sm },
   body: { fontSize: font.body, color: colors.text, lineHeight: 22 },
   label: { fontSize: font.small, fontWeight: '700', color: colors.textMuted, marginBottom: space.xs, textTransform: 'uppercase' },
+  labelHint: { fontWeight: '400', textTransform: 'none' },
   input: {
     backgroundColor: colors.surface,
     borderWidth: 2,

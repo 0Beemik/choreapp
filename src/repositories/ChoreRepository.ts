@@ -1,5 +1,5 @@
 import type { Db } from '../database';
-import type { Chore, ChoreFrequency } from '../models';
+import type { Chore, ChoreFrequency, TimeOfDay } from '../models';
 
 interface ChoreRow {
   id: string;
@@ -8,7 +8,8 @@ interface ChoreRow {
   icon: string;
   frequency: string;
   points: number | null;
-  fixed_user_id: string | null;
+  assignee_ids: string;
+  time_of_day: string;
   rotation_offset: number;
   is_active: number;
   created_at: string;
@@ -21,29 +22,39 @@ const toModel = (r: ChoreRow): Chore => ({
   icon: r.icon,
   frequency: r.frequency as ChoreFrequency,
   points: r.points,
-  fixedUserId: r.fixed_user_id,
+  assigneeIds: parseIds(r.assignee_ids),
+  timeOfDay: r.time_of_day as TimeOfDay,
   rotationOffset: r.rotation_offset,
   isActive: r.is_active === 1,
   createdAt: r.created_at,
 });
+
+function parseIds(json: string): string[] {
+  try {
+    const ids: unknown = JSON.parse(json);
+    return Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 export class ChoreRepository {
   constructor(private db: Db) {}
 
   async insert(c: Chore): Promise<void> {
     await this.db.run(
-      `INSERT INTO chores (id, family_id, name, icon, frequency, points, fixed_user_id, rotation_offset, is_active, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [c.id, c.familyId, c.name, c.icon, c.frequency, c.points, c.fixedUserId, c.rotationOffset,
+      `INSERT INTO chores (id, family_id, name, icon, frequency, points, assignee_ids, time_of_day, rotation_offset, is_active, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [c.id, c.familyId, c.name, c.icon, c.frequency, c.points, JSON.stringify(c.assigneeIds), c.timeOfDay, c.rotationOffset,
         c.isActive ? 1 : 0, c.createdAt],
     );
   }
 
   async update(c: Chore): Promise<void> {
     await this.db.run(
-      `UPDATE chores SET name = ?, icon = ?, frequency = ?, points = ?, fixed_user_id = ?, is_active = ?
+      `UPDATE chores SET name = ?, icon = ?, frequency = ?, points = ?, assignee_ids = ?, time_of_day = ?, is_active = ?
        WHERE id = ?`,
-      [c.name, c.icon, c.frequency, c.points, c.fixedUserId, c.isActive ? 1 : 0, c.id],
+      [c.name, c.icon, c.frequency, c.points, JSON.stringify(c.assigneeIds), c.timeOfDay, c.isActive ? 1 : 0, c.id],
     );
   }
 
