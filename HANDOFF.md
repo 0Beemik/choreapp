@@ -11,9 +11,9 @@ what's next. (Claude: also read the memory files. They hold the same facts plus 
 - **beemik.com:** live on Cloudflare (Worker `beemik-com`, repo `0Beemik/beemik.com`, branch `main`).
   Pushing to `main` deploys automatically.
 - **Code:** version 1.2 (coins, marketplace, notifications, countertop mode and the new package
-  name) is on branch `feature/coins-market`. It is still **uncommitted**: about 50 changed or new
-  files, and only this machine has a copy. The uploaded AAB was built from this code.
-  → **First thing to do:** if family testing went fine, commit it (Brent's call) so it's backed up.
+  name) is committed and pushed on branch `feature/coins-market` (commit 65e74a9, 2026-11-06), after
+  closed testing went well. The uploaded AAB was built from this code. That branch also contains
+  e506528, so a single PR from `feature/coins-market` into `main` brings `main` up to date.
 
 ## Where the files are
 
@@ -79,4 +79,4 @@ Other:
 3. Family Chores 1.3: customizable avatars (outfits bought with coins, family home scene).
 4. Other beemik.com projects: Grumps!, Better Flip (needs a new name), Elevator Games rework, CareerDNA app icon.
 5. iOS later: needs a Swift port of `modules/lan-sync`.
-6. Housekeeping: PR from `feature/lan-sync` (commit e506528) into `main` is still open.
+6. Housekeeping: open a PR from `feature/coins-market` into `main` (it includes e506528).
