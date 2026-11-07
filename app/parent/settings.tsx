@@ -5,6 +5,8 @@ import { addDays, formatDay, WEEKDAYS, type Weekday } from '@/src/lib/dates';
 import type { FamilySettings, Vacation } from '@/src/models';
 import { UserFacingError } from '@/src/services';
 import { useApp } from '@/src/state/AppContext';
+import { PhoneNotificationsCard } from '@/src/notify/PhoneNotificationsCard';
+import { CountertopCard } from '@/src/ui/Countertop';
 import { Body, Button, Card, Choice, ErrorText, Field, Heading, ListItem, Screen } from '@/src/ui/components';
 import { PinPad } from '@/src/ui/PinPad';
 
@@ -15,9 +17,12 @@ export default function Settings() {
   const s = family?.settings;
   const [name, setName] = useState(family?.name ?? '');
   const [points, setPoints] = useState(String(s?.pointsPerChore ?? ''));
-  const [skipPct, setSkipPct] = useState(String(s?.buyoutCostPercentage ?? ''));
   const [skips, setSkips] = useState(String(s?.maxBuyoutsPerMonth ?? ''));
   const [penalty, setPenalty] = useState(String(s?.missedChorePenalty ?? ''));
+  const [minSell, setMinSell] = useState(String(s?.minSellPrice ?? ''));
+  const [sales, setSales] = useState(String(s?.maxSalesPerWeek ?? ''));
+  const [pushCost, setPushCost] = useState(String(s?.pushCost ?? ''));
+  const [pushes, setPushes] = useState(String(s?.maxPushesPerWeek ?? ''));
   const [day, setDay] = useState<Weekday>(s?.rotationDay ?? 'sunday');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -46,10 +51,14 @@ export default function Settings() {
     try {
       const next: FamilySettings = {
         pointsPerChore: num(points),
-        buyoutCostPercentage: num(skipPct),
+        buyoutCostPercentage: s.buyoutCostPercentage,
         maxBuyoutsPerMonth: num(skips),
         missedChorePenalty: num(penalty),
         rotationDay: day,
+        minSellPrice: num(minSell),
+        maxSalesPerWeek: num(sales),
+        pushCost: num(pushCost),
+        maxPushesPerWeek: num(pushes),
       };
       if (name.trim() !== family.name) await services.family.rename(family.id, name);
       await services.family.updateSettings(family.id, next);
@@ -119,18 +128,30 @@ export default function Settings() {
         <Field label="Family name" value={name} onChangeText={setName} />
         <Field label="Points per chore" value={points} onChangeText={setPoints} keyboardType="number-pad" />
         <Field label="Missed chore penalty (points)" value={penalty} onChangeText={setPenalty} keyboardType="number-pad" />
-        <Field label="Cost to skip a chore (% of its points)" value={skipPct} onChangeText={setSkipPct} keyboardType="number-pad" />
-        <Field label="Skips allowed per kid each month" value={skips} onChangeText={setSkips} keyboardType="number-pad" />
+        <Field label="Free skips per person each month (no points, coins or penalty)" value={skips} onChangeText={setSkips} keyboardType="number-pad" />
         <Choice
           label="New chore week starts on"
           value={day}
           onChange={setDay}
           options={WEEKDAYS.map((d) => ({ value: d, label: d.slice(0, 3).replace(/^./, (c) => c.toUpperCase()) }))}
         />
+        <Heading>🏪 Marketplace</Heading>
+        <Field label="Lowest price to sell a chore (coins)" value={minSell} onChangeText={setMinSell} keyboardType="number-pad" />
+        <Field label="Sales per person each week" value={sales} onChangeText={setSales} keyboardType="number-pad" />
+        <Field
+          label={`Cost to push a chore (coins; sending it back costs half${num(pushCost) > 0 ? `, ${Math.ceil(num(pushCost) / 2)}` : ''})`}
+          value={pushCost}
+          onChangeText={setPushCost}
+          keyboardType="number-pad"
+        />
+        <Field label="Pushes per person each week (sent, and received)" value={pushes} onChangeText={setPushes} keyboardType="number-pad" />
         <ErrorText>{error}</ErrorText>
         {saved ? <Body muted>Saved ✓</Body> : null}
         <Button title="Save rules" onPress={saveRules} />
       </Card>
+
+      <PhoneNotificationsCard />
+      <CountertopCard />
 
       <Card>
         <Heading>🏖️ Vacation mode</Heading>

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 import type { CompletionResult } from '../services/ChoreService';
+import type { MarketOp } from '../services/MarketService';
 import {
   deviceName,
   findHubAddress,
@@ -37,10 +38,16 @@ interface SyncContextValue {
   hubPort: number | null;
   /** Tick off, undo or skip a chore, wherever the family data lives. */
   act: (type: ActionType, assignmentId: string) => Promise<CompletionResult | null>;
+  /** A marketplace move by `actorId`. Joined devices need home Wi-Fi; throws UserFacingError if refused. */
+  market: (actorId: string, op: MarketOp) => Promise<void>;
+  /** The person this device belongs to, or null on the main device and shared devices. */
+  ownerId: string | null;
   syncNow: () => Promise<void>;
   join: (address: string, code: string) => Promise<MemberLink>;
   chooseUser: (userId: string | null) => Promise<void>;
   leave: () => Promise<void>;
+  /** Joined device only: take over as the family's main device (needs the parent PIN). */
+  becomeMainDevice: (pin: string) => Promise<void>;
   /** Call after pairing/removing devices so the hub's keep-alive matches. */
   devicesChanged: () => Promise<void>;
 }
@@ -56,7 +63,7 @@ export function useSync(): SyncContextValue {
 export function SyncProvider({ children }: { children: ReactNode }) {
   const { services, family, refresh } = useApp();
   const [member] = useState(() => new SyncMember(services, httpTransport, findHubAddress));
-  const [hub] = useState(() => new SyncHub(services));
+  const [hub] = useState(() => new SyncHub(services, undefined, deviceName()));
   const [link, setLink] = useState<MemberLink | null>(null);
   const [linkLoaded, setLinkLoaded] = useState(false);
   const [hubPort, setHubPort] = useState<number | null>(null);
@@ -165,6 +172,21 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     [mode, member, services, refresh, syncNow],
   );
 
+  const market = useCallback(
+    async (actorId: string, op: MarketOp) => {
+      try {
+        if (mode === 'member') await member.market(actorId, op);
+        else if (familyId) {
+          await services.market.perform(familyId, actorId, op);
+          await services.market.sweep(familyId);
+        }
+      } finally {
+        await refresh();
+      }
+    },
+    [mode, member, services, familyId, refresh],
+  );
+
   const join = useCallback(
     async (address: string, code: string) => {
       const l = await member.join(address, code, deviceName());
@@ -185,6 +207,25 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     [member, reloadLink, refresh],
   );
 
+  const becomeMainDevice = useCallback(
+    async (pin: string) => {
+      await member.becomeMainDevice(pin);
+      await reloadLink();
+      await refresh();
+    },
+    [member, reloadLink, refresh],
+  );
+
+  // The other way round: this main device handed over, so it rejoins as an ordinary device.
+  useEffect(() => {
+    hub.setHandoverListener(async (link) => {
+      await member.adopt(link);
+      await stopKeepAlive().catch(() => undefined);
+      await reloadLink();
+      await refresh();
+    });
+  }, [hub, member, reloadLink, refresh]);
+
   const leave = useCallback(async () => {
     await member.leave();
     await reloadLink();
@@ -200,13 +241,16 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       hub,
       hubPort,
       act,
+      market,
+      ownerId: mode === 'member' ? (link?.userId ?? null) : null,
       syncNow,
       join,
       chooseUser,
       leave,
+      becomeMainDevice,
       devicesChanged,
     }),
-    [mode, link, memberState, hub, hubPort, act, syncNow, join, chooseUser, leave, devicesChanged],
+    [mode, link, memberState, hub, hubPort, act, market, syncNow, join, chooseUser, leave, becomeMainDevice, devicesChanged],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

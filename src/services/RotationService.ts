@@ -8,6 +8,7 @@ import {
 } from '../lib/dates';
 import type { Chore, Family, User, Vacation } from '../models';
 import type { BadgeService } from './BadgeService';
+import type { MarketService } from './MarketService';
 import type { Deps } from './deps';
 
 /**
@@ -19,6 +20,7 @@ export class RotationService {
   constructor(
     private deps: Deps,
     private badges: BadgeService,
+    private market?: MarketService,
   ) {}
 
   /** Idempotent; safe to call on every app open or screen focus. */
@@ -39,6 +41,8 @@ export class RotationService {
         await this.assignPeriod(family, periodStart, today);
         await repos.families.setCurrentPeriod(family.id, periodStart);
       }
+      // After missed chores are closed, so held market coins settle the same moment.
+      await this.market?.sweep(family.id);
     });
   }
 

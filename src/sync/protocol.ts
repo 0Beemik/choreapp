@@ -1,5 +1,7 @@
+import type { MarketOp } from '../services/MarketService';
+
 // Wire format between a joined device and the hub. Bump PROTOCOL_VERSION on breaking changes.
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 5;
 export const SERVICE_TYPE = 'familychores';
 export const DEFAULT_PORT = 47821;
 
@@ -56,6 +58,39 @@ export interface SyncResponse {
   results: ActionResult[];
   /** Omitted when the device already has the latest data. */
   snapshot: Snapshot | null;
+}
+
+/**
+ * Market moves can't be applied offline and merged later (two kids could buy the same chore),
+ * so they go straight to the hub, which answers yes or no with fresh data.
+ */
+export interface MarketRequest {
+  token: string;
+  /** Who is acting. A device tied to one person can only act as them. */
+  actorId: string;
+  op: MarketOp;
+}
+
+export interface MarketResponse {
+  ok: boolean;
+  message: string | null;
+  snapshot: Snapshot;
+}
+
+/** Moving the main device: the new device asks with the parent PIN, saves everything, then commits. */
+export interface HandoverPrepareRequest {
+  token: string;
+  pin: string;
+}
+
+export interface HandoverPrepareResponse {
+  hubId: string;
+  familyName: string;
+  full: Snapshot;
+}
+
+export interface HandoverCommitRequest {
+  token: string;
 }
 
 export interface HttpResult {

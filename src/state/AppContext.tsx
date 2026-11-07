@@ -13,7 +13,10 @@ interface AppData {
   kids: User[];
   chores: Chore[];
   board: Board | null;
+  /** Points (score) per member. */
   balances: Record<string, number>;
+  /** Coins (currency) per member. */
+  coins: Record<string, number>;
 }
 
 interface AppContextValue extends AppData {
@@ -25,7 +28,7 @@ interface AppContextValue extends AppData {
   lockParent: () => void;
 }
 
-const EMPTY: AppData = { family: null, members: [], kids: [], chores: [], board: null, balances: {} };
+const EMPTY: AppData = { family: null, members: [], kids: [], chores: [], board: null, balances: {}, coins: {} };
 
 const Ctx = createContext<AppContextValue | null>(null);
 
@@ -40,14 +43,15 @@ async function loadData(s: Services): Promise<AppData> {
   if (!family) return EMPTY;
   // Closes out yesterday / last week and deals new chores whenever the date has moved on.
   await s.rotation.ensureCurrentPeriod(family.id);
-  const [fresh, members, chores, board, balances] = await Promise.all([
+  const [fresh, members, chores, board, balances, coins] = await Promise.all([
     s.family.current(),
     s.family.members(family.id),
     s.chores.list(family.id),
     s.board.load(family.id),
     s.points.balances(family.id),
+    s.coins.balances(family.id),
   ]);
-  return { family: fresh, members, kids: members.filter((m) => m.role === 'child'), chores, board, balances };
+  return { family: fresh, members, kids: members.filter((m) => m.role === 'child'), chores, board, balances, coins };
 }
 
 export function AppProvider({

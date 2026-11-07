@@ -49,3 +49,6 @@ coverage/
 # Gradle output inside local native modules
 modules/*/android/build/
 modules/*/android/.gradle/
+
+# Release builds, store listing assets and promo video (large binaries; kept locally)
+/releases

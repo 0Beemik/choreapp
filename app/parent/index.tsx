@@ -11,7 +11,7 @@ const MENU = [
   { href: '/parent/week', icon: '📅', title: 'This week', subtitle: 'Excuse, move or mark chores done' },
   { href: '/parent/chores', icon: '🧹', title: 'Chores', subtitle: 'Add, edit, choose who does what' },
   { href: '/parent/members', icon: '👨‍👩‍👧', title: 'Family', subtitle: 'Kids, parents, avatars, allowance' },
-  { href: '/parent/points', icon: '⭐', title: 'Points & allowance', subtitle: 'Bonuses, corrections, history' },
+  { href: '/parent/points', icon: '⭐', title: 'Points, coins & allowance', subtitle: 'Bonuses, corrections, history' },
   { href: '/parent/settings', icon: '⚙️', title: 'Settings', subtitle: 'Rules, vacation, PIN' },
   { href: '/parent/devices', icon: '📱', title: 'Family devices', subtitle: 'Put chores on kids’ phones and tablets' },
 ] as const;

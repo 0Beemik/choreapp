@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { AdBanner } from '@/src/ads/AdBanner';
 import { currentStreak } from '@/src/services/BadgeService';
-import type { Badge, PointTransaction } from '@/src/models';
+import type { Badge, CoinTransaction, PointTransaction } from '@/src/models';
 import type { AllowanceSummary } from '@/src/services';
 import { useApp } from '@/src/state/AppContext';
 import { Avatar, Body, Card, Heading, Row, Screen } from '@/src/ui/components';
@@ -13,13 +13,14 @@ interface Profile {
   badges: Badge[];
   earned: Set<string>;
   history: PointTransaction[];
+  coinHistory: CoinTransaction[];
   allowance: AllowanceSummary;
   streak: number;
 }
 
 export default function KidProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { family, members, balances, services } = useApp();
+  const { family, members, balances, coins, services } = useApp();
   const kid = members.find((m) => m.id === id);
   const [profile, setProfile] = useState<Profile | null>(null);
 
@@ -28,10 +29,11 @@ export default function KidProfile() {
       if (!family || !kid) return;
       let live = true;
       (async () => {
-        const [badges, earned, history, allowance, days] = await Promise.all([
+        const [badges, earned, history, coinHistory, allowance, days] = await Promise.all([
           services.badges.all(),
           services.badges.earned(kid.id),
           services.points.history(kid.id),
+          services.coins.history(kid.id),
           services.points.allowance(family.id, kid.id),
           services.deps.repos.assignments.completionDays(kid.id),
         ]);
@@ -40,6 +42,7 @@ export default function KidProfile() {
             badges,
             earned: new Set(earned.map((e) => e.badgeId)),
             history,
+            coinHistory,
             allowance,
             streak: currentStreak(days, services.deps.today()),
           });
@@ -60,6 +63,7 @@ export default function KidProfile() {
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{kid.name}</Text>
           <Text style={styles.big}>⭐ {balances[kid.id] ?? 0} points</Text>
+          <Text style={[styles.big, { color: '#1F5FBF' }]}>🪙 {coins[kid.id] ?? 0} coins</Text>
           {profile && profile.streak > 1 ? <Text style={styles.streak}>🔥 {profile.streak}-day streak</Text> : null}
         </View>
       </Row>
@@ -117,6 +121,20 @@ export default function KidProfile() {
                 <Text style={{ fontWeight: '800', color: t.amount >= 0 ? colors.success : colors.danger }}>
                   {t.amount >= 0 ? '+' : ''}
                   {t.amount}
+                </Text>
+              </Row>
+            ))}
+          </Card>
+
+          <Card>
+            <Heading>Recent coins</Heading>
+            {profile.coinHistory.length === 0 ? <Body muted>No coins yet. Every chore pays 2 or 3.</Body> : null}
+            {profile.coinHistory.slice(0, 15).map((t) => (
+              <Row key={t.id} style={styles.historyRow}>
+                <Text style={{ flex: 1, color: colors.text }}>{t.reason}</Text>
+                <Text style={{ fontWeight: '800', color: t.amount >= 0 ? colors.success : colors.danger }}>
+                  {t.amount >= 0 ? '+' : ''}
+                  {t.amount} 🪙
                 </Text>
               </Row>
             ))}

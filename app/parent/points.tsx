@@ -1,26 +1,35 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Text } from 'react-native';
-import type { PointTransaction } from '@/src/models';
 import { UserFacingError, type AllowanceSummary } from '@/src/services';
 import { useApp } from '@/src/state/AppContext';
 import { Avatar, Body, Button, Card, Choice, Field, Heading, ListItem, Row, Screen } from '@/src/ui/components';
 import { colors } from '@/src/ui/theme';
 
+type Currency = 'points' | 'coins';
+
+interface HistoryRow {
+  id: string;
+  reason: string;
+  amount: number;
+  createdAt: string;
+}
+
 export default function Points() {
-  const { family, kids, balances, services, refresh } = useApp();
-  const [kidId, setKidId] = useState(kids[0]?.id ?? '');
+  const { family, kids, members, balances, coins, services, refresh } = useApp();
+  const [userId, setUserId] = useState(kids[0]?.id ?? members[0]?.id ?? '');
+  const [currency, setCurrency] = useState<Currency>('points');
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
-  const [history, setHistory] = useState<PointTransaction[]>([]);
+  const [history, setHistory] = useState<HistoryRow[]>([]);
   const [allowances, setAllowances] = useState<Record<string, AllowanceSummary>>({});
 
   const load = useCallback(async () => {
     if (!family) return;
     const entries = await Promise.all(kids.map(async (k) => [k.id, await services.points.allowance(family.id, k.id)] as const));
     setAllowances(Object.fromEntries(entries));
-    if (kidId) setHistory(await services.points.history(kidId));
-  }, [family, kids, kidId, services]);
+    if (userId) setHistory(currency === 'points' ? await services.points.history(userId) : await services.coins.history(userId));
+  }, [family, kids, userId, currency, services]);
 
   useFocusEffect(
     useCallback(() => {
@@ -29,11 +38,14 @@ export default function Points() {
   );
 
   if (!family) return null;
-  const kid = kids.find((k) => k.id === kidId);
+  const person = members.find((m) => m.id === userId);
+  const unit = currency === 'points' ? '⭐' : '🪙';
 
   const apply = async (sign: 1 | -1) => {
     try {
-      await services.points.adjust(family.id, kidId, sign * Number(amount), reason);
+      const n = sign * Number(amount);
+      if (currency === 'points') await services.points.adjust(family.id, userId, n, reason);
+      else await services.coins.adjust(family.id, userId, n, reason);
       setAmount('');
       setReason('');
       await refresh();
@@ -66,14 +78,28 @@ export default function Points() {
         <Body muted>Set a weekly allowance per kid under Family. Pay is in proportion to chores done.</Body>
       </Card>
 
-      {kid ? (
+      {person ? (
         <Card>
-          <Heading>Give or take points</Heading>
-          <Choice value={kidId} onChange={setKidId} options={kids.map((k) => ({ value: k.id, label: `${k.avatarEmoji} ${k.name}` }))} />
+          <Heading>Give or take</Heading>
+          <Choice value={userId} onChange={setUserId} options={members.map((m) => ({ value: m.id, label: `${m.avatarEmoji} ${m.name}` }))} />
+          <Choice
+            value={currency}
+            onChange={setCurrency}
+            options={[
+              { value: 'points', label: '⭐ Points' },
+              { value: 'coins', label: '🪙 Coins' },
+            ]}
+          />
           <Body>
-            {kid.name} has ⭐ {balances[kid.id] ?? 0}
+            {person.name} has ⭐ {balances[person.id] ?? 0} points and 🪙 {coins[person.id] ?? 0} coins
           </Body>
-          <Field label="Points" value={amount} onChangeText={(t) => setAmount(t.replace(/\D/g, ''))} keyboardType="number-pad" maxLength={4} />
+          <Field
+            label={currency === 'points' ? 'Points' : 'Coins'}
+            value={amount}
+            onChangeText={(t) => setAmount(t.replace(/\D/g, ''))}
+            keyboardType="number-pad"
+            maxLength={4}
+          />
           <Field label="Reason" value={reason} onChangeText={setReason} placeholder="Helped with groceries" />
           <Row>
             <Button title="+ Give" onPress={() => apply(1)} disabled={!amount} style={{ flex: 1 }} />
@@ -82,10 +108,12 @@ export default function Points() {
         </Card>
       ) : null}
 
-      {kid ? (
+      {person ? (
         <Card>
-          <Heading>{kid.name}’s history</Heading>
-          {history.length === 0 ? <Body muted>No points yet.</Body> : null}
+          <Heading>
+            {person.name}’s {currency}
+          </Heading>
+          {history.length === 0 ? <Body muted>Nothing yet.</Body> : null}
           {history.map((t) => (
             <ListItem
               key={t.id}
@@ -94,7 +122,7 @@ export default function Points() {
               right={
                 <Text style={{ fontWeight: '800', color: t.amount >= 0 ? colors.success : colors.danger }}>
                   {t.amount >= 0 ? '+' : ''}
-                  {t.amount}
+                  {t.amount} {unit}
                 </Text>
               }
             />

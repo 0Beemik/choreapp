@@ -13,19 +13,33 @@ export interface ChoreInput {
   /** Empty = rotates weekly. */
   assigneeIds: string[];
   timeOfDay: TimeOfDay;
+  /** 2, or 3 with a parent's bonus coin. */
+  coins: number;
 }
 
 export interface CompletionResult {
   pointsAwarded: number;
+  coinsAwarded: number;
   newBadges: Badge[];
 }
 
+/** Skips are free "get out of jail" cards: no points, no coins, no penalty, limited per month. */
 export interface BuyoutQuote {
-  cost: number;
-  balance: number;
   buyoutsLeftThisMonth: number;
   allowed: boolean;
   reason: string | null;
+}
+
+export const MIN_CHORE_COINS = 2;
+export const MAX_CHORE_COINS = 3;
+
+function checkChoreInput(input: ChoreInput): string {
+  const name = input.name.trim();
+  if (!name) throw new UserFacingError('Give the chore a name.');
+  if (!Number.isInteger(input.coins) || input.coins < MIN_CHORE_COINS || input.coins > MAX_CHORE_COINS) {
+    throw new UserFacingError(`A chore pays ${MIN_CHORE_COINS} or ${MAX_CHORE_COINS} coins.`);
+  }
+  return name;
 }
 
 export function chorePoints(chore: Pick<Chore, 'points'>, family: Family): number {
@@ -44,8 +58,7 @@ export class ChoreService {
   }
 
   async add(familyId: string, input: ChoreInput): Promise<Chore> {
-    const name = input.name.trim();
-    if (!name) throw new UserFacingError('Give the chore a name.');
+    const name = checkChoreInput(input);
     const chore: Chore = {
       id: uuid(),
       familyId,
@@ -55,6 +68,7 @@ export class ChoreService {
       points: input.points,
       assigneeIds: input.assigneeIds,
       timeOfDay: input.timeOfDay,
+      coins: input.coins,
       rotationOffset: await this.deps.repos.chores.nextRotationOffset(familyId),
       isActive: true,
       createdAt: this.deps.timestamp(),
@@ -70,8 +84,7 @@ export class ChoreService {
     const { repos } = this.deps;
     const existing = await repos.chores.findById(choreId);
     if (!existing) throw new UserFacingError('That chore no longer exists.');
-    const name = input.name.trim();
-    if (!name) throw new UserFacingError('Give the chore a name.');
+    const name = checkChoreInput(input);
     const updated: Chore = { ...existing, ...input, name };
     await this.deps.db.transaction(async () => {
       await repos.chores.update(updated);
@@ -112,16 +125,18 @@ export class ChoreService {
         pointsAwarded: points,
       });
       await this.deps.addPoints(family.id, assignment.userId, 'earned', points, chore.name, assignment.id);
+      await this.deps.addCoins(family.id, assignment.userId, 'earned', chore.coins, chore.name, { assignmentId: assignment.id });
+      await this.tellParents(family.id, assignment, chore, points);
       const newBadges = await this.badges.evaluateAfterCompletion(
         family.id,
         assignment.userId,
         assignment.periodStart,
       );
-      return { pointsAwarded: points, newBadges };
+      return { pointsAwarded: points, coinsAwarded: chore.coins, newBadges };
     });
   }
 
-  /** Kids tap the wrong thing. Undo takes the points back; badges already earned stay. */
+  /** Kids tap the wrong thing. Undo takes the points and coins back; badges already earned stay. */
   async undo(assignmentId: string): Promise<void> {
     const { repos } = this.deps;
     const { assignment } = await this.load(assignmentId);
@@ -131,16 +146,18 @@ export class ChoreService {
       for (const t of await repos.points.findForAssignment(assignment.id)) {
         if (t.type === 'earned' || t.type === 'spent') await repos.points.delete(t.id);
       }
+      for (const t of await repos.coins.findForAssignment(assignment.id)) {
+        if (t.type === 'earned') await repos.coins.delete(t.id);
+      }
+      await repos.notifications.deleteByRef('chore_done', choreDoneRef(assignment));
       await repos.assignments.setStatus(assignment.id, 'pending');
     });
   }
 
   async buyoutQuote(assignmentId: string, at?: Date): Promise<BuyoutQuote> {
     const { repos } = this.deps;
-    const { assignment, chore, family } = await this.load(assignmentId);
+    const { assignment, family } = await this.load(assignmentId);
     const inTime = assignment.status === 'missed' && dayKey(this.actionTime(at)) <= assignment.dueDate;
-    const cost = Math.max(1, Math.ceil((chorePoints(chore, family) * family.settings.buyoutCostPercentage) / 100));
-    const balance = await repos.points.balance(assignment.userId);
     const month = monthBounds(this.deps.today());
     const used = await repos.assignments.countBuyouts(assignment.userId, month.start, month.end);
     const buyoutsLeftThisMonth = Math.max(0, family.settings.maxBuyoutsPerMonth - used);
@@ -148,18 +165,17 @@ export class ChoreService {
     let reason: string | null = null;
     if (assignment.status !== 'pending' && !inTime) reason = 'This chore is already taken care of.';
     else if (buyoutsLeftThisMonth === 0) reason = 'No skips left this month.';
-    else if (balance < cost) reason = `You need ${cost - balance} more points.`;
-    return { cost, balance, buyoutsLeftThisMonth, allowed: reason === null, reason };
+    return { buyoutsLeftThisMonth, allowed: reason === null, reason };
   }
 
+  /** Free, but uses up one of the month's skips. A missed-chore penalty is lifted if still in time. */
   async buyout(assignmentId: string, at?: Date): Promise<void> {
     const quote = await this.buyoutQuote(assignmentId, at);
     if (!quote.allowed) throw new UserFacingError(quote.reason ?? 'Cannot skip this chore.');
-    const { assignment, chore, family } = await this.load(assignmentId);
+    const { assignment } = await this.load(assignmentId);
     await this.deps.db.transaction(async () => {
       await this.reopenIfDoneInTime(assignment, this.actionTime(at));
-      await this.deps.repos.assignments.setStatus(assignment.id, 'bought_out', { pointsSpent: quote.cost });
-      await this.deps.addPoints(family.id, assignment.userId, 'spent', -quote.cost, `Skipped: ${chore.name}`, assignment.id);
+      await this.deps.repos.assignments.setStatus(assignment.id, 'bought_out');
     });
   }
 
@@ -173,11 +189,28 @@ export class ChoreService {
   async reassign(assignmentId: string, userId: string): Promise<void> {
     const { assignment } = await this.load(assignmentId);
     if (assignment.status !== 'pending') throw new UserFacingError('Only chores not yet done can be moved.');
-    const week = await this.deps.repos.assignments.findByPeriod(assignment.familyId, assignment.periodStart);
-    if (week.some((a) => a.choreId === assignment.choreId && a.dueDate === assignment.dueDate && a.userId === userId)) {
+    if (await this.deps.repos.assignments.hasChoreOnDay(userId, assignment.choreId, assignment.dueDate)) {
       throw new UserFacingError('They already have this chore that day.');
     }
     await this.deps.repos.assignments.reassign(assignmentId, userId);
+  }
+
+  /** Parents (except whoever did it) hear about every finished chore; kids don't hear about each other's. */
+  private async tellParents(familyId: string, assignment: ChoreAssignment, chore: Chore, points: number): Promise<void> {
+    const { repos } = this.deps;
+    const members = await repos.users.findByFamily(familyId);
+    const doer = members.find((m) => m.id === assignment.userId);
+    for (const parent of members.filter((m) => m.role === 'parent' && m.id !== assignment.userId)) {
+      await repos.notifications.insert({
+        id: uuid(),
+        familyId,
+        userId: parent.id,
+        kind: 'chore_done',
+        text: `✅ ${doer?.name ?? 'Someone'} finished “${chore.name}” · +${points} ⭐ +${chore.coins} 🪙`,
+        refId: choreDoneRef(assignment),
+        createdAt: this.deps.timestamp(),
+      });
+    }
   }
 
   /** Clamp device clocks: an action can't be from the future. */
@@ -207,4 +240,8 @@ export class ChoreService {
     if (!chore || !family) throw new UserFacingError('That chore no longer exists.');
     return { assignment, chore, family };
   }
+}
+
+function choreDoneRef(a: Pick<ChoreAssignment, 'id' | 'userId'>): string {
+  return `${a.userId}|${a.id}`;
 }

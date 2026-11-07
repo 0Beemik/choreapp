@@ -49,6 +49,10 @@ async function balance(user: User) {
   return (await s.points.balances(family.id))[user.id] ?? 0;
 }
 
+async function coins(user: User) {
+  return (await s.coins.balances(family.id))[user.id] ?? 0;
+}
+
 beforeEach(async () => {
   setNow(2026, 10, 4);
   s = await createServices(new NodeDb(), () => now);
@@ -106,14 +110,43 @@ describe('completing chores', () => {
     await expect(s.chores.complete(today.id)).rejects.toThrow('already');
   });
 
-  it('undo takes the points back', async () => {
+  it('pays coins as well as points: 2 by default, 3 with a bonus coin', async () => {
+    await setup([]);
+    const two = await s.chores.add(family.id, { name: 'Dishes', icon: '🍽️', frequency: 'daily', points: null, assigneeIds: [ava.id], timeOfDay: 'any', coins: 2 });
+    await s.chores.add(family.id, { name: 'Toilets', icon: '🚽', frequency: 'daily', points: null, assigneeIds: [ava.id], timeOfDay: 'any', coins: 3 });
+    const board = await boardFor(ava);
+    const results = [];
+    for (const a of board) results.push(await s.chores.complete(a.id));
+    expect(results.map((r) => r.coinsAwarded).sort()).toEqual([2, 3]);
+    expect(await coins(ava)).toBe(5);
+    // Badge bonuses are points only; coins come from chores.
+    expect(await balance(ava)).toBeGreaterThan(20);
+
+    await expect(
+      s.chores.update(two.id, { name: 'Dishes', icon: '🍽️', frequency: 'daily', points: null, assigneeIds: [ava.id], timeOfDay: 'any', coins: 4 }),
+    ).rejects.toThrow('2 or 3 coins');
+  });
+
+  it('undo takes the points and coins back', async () => {
     await setup([bed]);
     const kid = await kidWithChores();
     const [a] = await boardFor(kid);
     await s.chores.complete(a.id);
+    expect(await coins(kid)).toBe(2);
     await s.chores.undo(a.id);
     expect((await s.deps.repos.assignments.findById(a.id))!.status).toBe('pending');
     expect(await balance(kid)).toBe(5); // badge bonus is kept
+    expect(await coins(kid)).toBe(0);
+  });
+
+  it('parents can give and take coins, kept apart from points', async () => {
+    await setup([]);
+    await s.coins.adjust(family.id, ben.id, 10, 'Birthday');
+    await s.coins.adjust(family.id, ben.id, -3, '');
+    expect(await coins(ben)).toBe(7);
+    expect(await balance(ben)).toBe(0);
+    expect((await s.coins.history(ben.id)).map((t) => t.type)).toEqual(['adjustment', 'bonus']);
+    await expect(s.coins.adjust(family.id, ben.id, 1.5, '')).rejects.toThrow('whole number');
   });
 
   it('shows today’s daily chores and the week’s weekly chores only', async () => {
@@ -124,26 +157,27 @@ describe('completing chores', () => {
   });
 });
 
-describe('buyouts', () => {
-  it('needs enough points and respects the monthly limit', async () => {
+describe('skips (get out of jail)', () => {
+  it('are free, 2 a month by default, and earn nothing', async () => {
     await setup([bed]);
+    expect(family.settings.maxBuyoutsPerMonth).toBe(2);
     const kid = await kidWithChores();
-    const [first] = await boardFor(kid);
 
-    let quote = await s.chores.buyoutQuote(first.id);
-    expect(quote).toMatchObject({ cost: 10, balance: 0, allowed: false });
-    await expect(s.chores.buyout(first.id)).rejects.toThrow('more points');
+    for (const day of [4, 5]) {
+      setNow(2026, 10, day);
+      const [a] = await boardFor(kid);
+      expect(await s.chores.buyoutQuote(a.id)).toEqual({ buyoutsLeftThisMonth: day === 4 ? 2 : 1, allowed: true, reason: null });
+      await s.chores.buyout(a.id);
+    }
+    expect(await balance(kid)).toBe(0);
+    expect(await coins(kid)).toBe(0);
 
-    await s.points.adjust(family.id, kid.id, 100, 'Birthday');
-    await s.family.updateSettings(family.id, { ...family.settings, maxBuyoutsPerMonth: 1 });
-    quote = await s.chores.buyoutQuote(first.id);
-    expect(quote.allowed).toBe(true);
-    await s.chores.buyout(first.id);
-    expect(await balance(kid)).toBe(90);
-
-    setNow(2026, 10, 5);
-    const [second] = await boardFor(kid);
-    expect((await s.chores.buyoutQuote(second.id)).reason).toBe('No skips left this month.');
+    setNow(2026, 10, 6);
+    const [third] = await boardFor(kid);
+    expect((await s.chores.buyoutQuote(third.id)).reason).toBe('No skips left this month.');
+    await expect(s.chores.buyout(third.id)).rejects.toThrow('No skips left');
+    // Skipped days were never penalised when the day rolled over.
+    expect(await balance(kid)).toBe(0);
   });
 });
 
@@ -226,7 +260,7 @@ describe('parents managing the family', () => {
   it('adds a chore mid-week for the remaining days only', async () => {
     await setup([]);
     setNow(2026, 10, 7);
-    await s.chores.add(family.id, { name: 'Feed fish', icon: '🐟', frequency: 'daily', points: 5, assigneeIds: [ben.id], timeOfDay: 'any' });
+    await s.chores.add(family.id, { name: 'Feed fish', icon: '🐟', frequency: 'daily', points: 5, assigneeIds: [ben.id], timeOfDay: 'any', coins: 2 });
     const week = await s.deps.repos.assignments.findByPeriod(family.id, '2026-10-04');
     expect(week.map((a) => a.dueDate)).toEqual(['2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10']);
     expect(week.every((a) => a.userId === ben.id)).toBe(true);
@@ -236,7 +270,7 @@ describe('parents managing the family', () => {
 
   it('gives a chore to several kids, each doing their own', async () => {
     await setup([]);
-    const chore = await s.chores.add(family.id, { name: 'Make bed', icon: '🛏️', frequency: 'daily', points: 5, assigneeIds: [ava.id, ben.id], timeOfDay: 'morning' });
+    const chore = await s.chores.add(family.id, { name: 'Make bed', icon: '🛏️', frequency: 'daily', points: 5, assigneeIds: [ava.id, ben.id], timeOfDay: 'morning', coins: 2 });
     const week = await s.deps.repos.assignments.findByPeriod(family.id, '2026-10-04');
     expect(week.filter((a) => a.userId === ava.id)).toHaveLength(7);
     expect(week.filter((a) => a.userId === ben.id)).toHaveLength(7);
@@ -249,7 +283,7 @@ describe('parents managing the family', () => {
     await expect(s.chores.reassign(benToday.id, ava.id)).rejects.toThrow('already have this chore');
 
     // Back to just Ben: Ava's done one stays, her upcoming ones go.
-    await s.chores.update(chore.id, { name: 'Make bed', icon: '🛏️', frequency: 'daily', points: 5, assigneeIds: [ben.id], timeOfDay: 'any' });
+    await s.chores.update(chore.id, { name: 'Make bed', icon: '🛏️', frequency: 'daily', points: 5, assigneeIds: [ben.id], timeOfDay: 'any', coins: 2 });
     const after = await s.deps.repos.assignments.findByPeriod(family.id, '2026-10-04');
     expect(after.filter((a) => a.userId === ava.id).map((a) => a.status)).toEqual(['completed']);
     expect(after.filter((a) => a.userId === ben.id)).toHaveLength(7);
@@ -258,7 +292,7 @@ describe('parents managing the family', () => {
 
   it('parents can be given chores too', async () => {
     await setup([]);
-    await s.chores.add(family.id, { name: 'Mow lawn', icon: '🚜', frequency: 'weekly', points: null, assigneeIds: [parent.id], timeOfDay: 'any' });
+    await s.chores.add(family.id, { name: 'Mow lawn', icon: '🚜', frequency: 'weekly', points: null, assigneeIds: [parent.id], timeOfDay: 'any', coins: 2 });
     expect((await boardFor(parent)).length).toBe(1);
     expect(await boardFor(ava)).toHaveLength(0);
     expect(await boardFor(ben)).toHaveLength(0);
@@ -267,7 +301,7 @@ describe('parents managing the family', () => {
   it('orders the board morning, afternoon, evening, then all day', async () => {
     await setup([]);
     const add = (name: string, timeOfDay: 'any' | 'morning' | 'afternoon' | 'evening') =>
-      s.chores.add(family.id, { name, icon: '✨', frequency: 'daily', points: null, assigneeIds: [ava.id], timeOfDay });
+      s.chores.add(family.id, { name, icon: '✨', frequency: 'daily', points: null, assigneeIds: [ava.id], timeOfDay, coins: 2 });
     await add('Anytime', 'any');
     await add('Dishes (evening)', 'evening');
     await add('Make bed', 'morning');

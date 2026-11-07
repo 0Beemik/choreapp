@@ -10,6 +10,10 @@ interface FamilyRow {
   max_buyouts_per_month: number;
   rotation_day: string;
   missed_chore_penalty: number;
+  min_sell_price: number;
+  max_sales_per_week: number;
+  push_cost: number;
+  max_pushes_per_week: number;
   pin_hash: string;
   pin_salt: string;
   current_period_start: string | null;
@@ -27,6 +31,10 @@ const toModel = (r: FamilyRow): Family => ({
     maxBuyoutsPerMonth: r.max_buyouts_per_month,
     rotationDay: r.rotation_day as Weekday,
     missedChorePenalty: r.missed_chore_penalty,
+    minSellPrice: r.min_sell_price,
+    maxSalesPerWeek: r.max_sales_per_week,
+    pushCost: r.push_cost,
+    maxPushesPerWeek: r.max_pushes_per_week,
   },
 });
 
@@ -37,10 +45,11 @@ export class FamilyRepository {
     const s = f.settings;
     await this.db.run(
       `INSERT INTO families (id, name, points_per_chore, buyout_cost_percentage, max_buyouts_per_month,
-         rotation_day, missed_chore_penalty, pin_hash, pin_salt, current_period_start, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         rotation_day, missed_chore_penalty, min_sell_price, max_sales_per_week, push_cost, max_pushes_per_week,
+         pin_hash, pin_salt, current_period_start, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [f.id, f.name, s.pointsPerChore, s.buyoutCostPercentage, s.maxBuyoutsPerMonth, s.rotationDay,
-        s.missedChorePenalty, pin.hash, pin.salt, f.currentPeriodStart, f.createdAt],
+        s.missedChorePenalty, s.minSellPrice, s.maxSalesPerWeek, s.pushCost, s.maxPushesPerWeek, pin.hash, pin.salt, f.currentPeriodStart, f.createdAt],
     );
   }
 
@@ -70,8 +79,10 @@ export class FamilyRepository {
   async updateSettings(id: string, s: FamilySettings): Promise<void> {
     await this.db.run(
       `UPDATE families SET points_per_chore = ?, buyout_cost_percentage = ?, max_buyouts_per_month = ?,
-         rotation_day = ?, missed_chore_penalty = ? WHERE id = ?`,
-      [s.pointsPerChore, s.buyoutCostPercentage, s.maxBuyoutsPerMonth, s.rotationDay, s.missedChorePenalty, id],
+         rotation_day = ?, missed_chore_penalty = ?, min_sell_price = ?, max_sales_per_week = ?, push_cost = ?,
+         max_pushes_per_week = ? WHERE id = ?`,
+      [s.pointsPerChore, s.buyoutCostPercentage, s.maxBuyoutsPerMonth, s.rotationDay, s.missedChorePenalty,
+        s.minSellPrice, s.maxSalesPerWeek, s.pushCost, s.maxPushesPerWeek, id],
     );
   }
 

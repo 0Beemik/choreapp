@@ -6,6 +6,7 @@ import { colors, font, radius, space } from './theme';
 export interface CelebrationInfo {
   name: string;
   points: number;
+  coins: number;
   badges: Badge[];
 }
 
@@ -53,6 +54,7 @@ export function Celebration({ info, onDone }: { info: CelebrationInfo | null; on
           <Text style={styles.big}>🎉</Text>
           <Text style={styles.title}>Great job, {info.name}!</Text>
           <Text style={styles.points}>+{info.points} points</Text>
+          {info.coins > 0 ? <Text style={styles.coins}>+{info.coins} coins 🪙</Text> : null}
           {info.badges.map((b) => (
             <View key={b.id} style={styles.badge}>
               <Text style={{ fontSize: 40 }}>{b.icon}</Text>
@@ -87,6 +89,7 @@ const styles = StyleSheet.create({
   big: { fontSize: 64 },
   title: { fontSize: font.title, fontWeight: '800', color: colors.text, textAlign: 'center' },
   points: { fontSize: font.hero, fontWeight: '900', color: colors.success },
+  coins: { fontSize: font.large, fontWeight: '800', color: '#8A6500', marginTop: space.xs },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',

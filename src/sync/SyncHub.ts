@@ -1,12 +1,17 @@
 import { sha256, uuid } from '../lib/crypto';
 import type { Services } from '../services';
 import { UserFacingError } from '../services/deps';
-import { dataVersion, exportSnapshot } from './snapshot';
+import { dataVersion, exportFull, exportSnapshot } from './snapshot';
 import {
   PROTOCOL_VERSION,
   type ActionResult,
   type HelloResponse,
+  type HandoverCommitRequest,
+  type HandoverPrepareRequest,
+  type HandoverPrepareResponse,
   type HttpResult,
+  type MarketRequest,
+  type MarketResponse,
   type PairRequest,
   type PairResponse,
   type SyncAction,
@@ -15,6 +20,9 @@ import {
 } from './protocol';
 
 const PAIRING_TTL_MS = 10 * 60 * 1000;
+/** A handover that isn't committed within this long is abandoned and the hub carries on. */
+const HANDOVER_TTL_MS = 2 * 60 * 1000;
+export const HANDOVER_STEP_DOWN_MS = 300;
 const MAX_PAIRING_ATTEMPTS = 5;
 
 export interface PairedDevice {
@@ -23,6 +31,21 @@ export interface PairedDevice {
   userId: string | null;
   createdAt: string;
   lastSeenAt: string | null;
+}
+
+/** What this device needs to rejoin the family as an ordinary device after handing over. */
+export interface HandedOver {
+  hubId: string;
+  familyName: string;
+  deviceId: string;
+  token: string;
+}
+
+interface PendingHandover {
+  deviceId: string;
+  /** The row and token this device will use once it's an ordinary family device. */
+  self: HandedOver;
+  expiresAt: number;
 }
 
 interface PairingCode {
@@ -40,11 +63,21 @@ interface PairingCode {
 export class SyncHub {
   private pairing: PairingCode | null = null;
   private listeners = new Set<() => void>();
+  private handover: PendingHandover | null = null;
+  private handedOver = false;
+  private onHandedOver: ((link: HandedOver) => Promise<void> | void) | null = null;
 
   constructor(
     private services: Services,
     private now: () => number = () => Date.now(),
+    /** How this device appears in the family's device list after handing over. */
+    private selfName = 'Previous main device',
   ) {}
+
+  /** Called once the main-device role has moved to another device; this one then rejoins as ordinary. */
+  setHandoverListener(fn: (link: HandedOver) => Promise<void> | void): void {
+    this.onHandedOver = fn;
+  }
 
   /** Notified after a device changed family data, so the hub's own screens refresh. */
   addChangeListener(fn: () => void): () => void {
@@ -83,6 +116,14 @@ export class SyncHub {
   /** Entry point for every request from the network. Never throws. */
   async handle(path: string, body: unknown): Promise<HttpResult> {
     try {
+      // Moved away: devices get "unavailable" and go looking for the new main device.
+      if (this.handedOver) return { status: 503, body: { error: 'The main device has moved.' } };
+      // A move that never committed is abandoned; nothing here changed, so just carry on.
+      if (this.handover && this.now() > this.handover.expiresAt) this.handover = null;
+      // Mid-handover, nothing may change here or it would be lost in the copy; devices retry shortly.
+      if (this.handover && path !== '/handover/commit' && path !== '/hello') {
+        return { status: 503, body: { error: 'The main device is moving. Try again in a moment.' } };
+      }
       switch (path) {
         case '/hello':
           return { status: 200, body: await this.hello() };
@@ -90,6 +131,12 @@ export class SyncHub {
           return await this.pair(body as PairRequest);
         case '/sync':
           return await this.sync(body as SyncRequest);
+        case '/market':
+          return await this.market(body as MarketRequest);
+        case '/handover/prepare':
+          return await this.prepareHandover(body as HandoverPrepareRequest);
+        case '/handover/commit':
+          return await this.commitHandover(body as HandoverCommitRequest);
         default:
           return { status: 404, body: { error: 'not found' } };
       }
@@ -130,12 +177,84 @@ export class SyncHub {
     return { status: 200, body: res };
   }
 
+  /**
+   * Step 1: check the PIN and hand over a full copy. Nothing changes here yet: in the copy, the
+   * requester is no longer a paired device (it becomes the hub) and this device is one.
+   */
+  private async prepareHandover(req: HandoverPrepareRequest): Promise<HttpResult> {
+    const device = await this.deviceFor(req?.token);
+    if (!device) return { status: 401, body: { error: 'This device was removed from the family.' } };
+    const family = await this.services.family.current();
+    if (!family) return { status: 409, body: { error: 'No family on the main device.' } };
+    if (typeof req.pin !== 'string' || !(await this.services.family.verifyPin(family.id, req.pin))) {
+      return { status: 403, body: { error: 'That PIN isn’t right.' } };
+    }
+    const token = `${uuid()}${uuid()}`.replace(/-/g, '');
+    const self: HandedOver = { hubId: family.id, familyName: family.name, deviceId: uuid(), token };
+    const now = this.services.deps.timestamp();
+    const full = await exportFull(this.services.deps.db);
+    full.tables.paired_devices = [
+      ...(full.tables.paired_devices ?? []).filter((r) => r.id !== device.id),
+      { id: self.deviceId, name: this.selfName, token_hash: await sha256(token), user_id: null, created_at: now, last_seen_at: now },
+    ];
+    this.handover = { deviceId: device.id, self, expiresAt: this.now() + HANDOVER_TTL_MS };
+    const res: HandoverPrepareResponse = { hubId: family.id, familyName: family.name, full };
+    return { status: 200, body: res };
+  }
+
+  /** Step 2: the new main device has saved everything. Stop serving and rejoin as an ordinary device. */
+  private async commitHandover(req: HandoverCommitRequest): Promise<HttpResult> {
+    const pending = this.handover;
+    const device = await this.deviceFor(req?.token);
+    if (!pending || !device || device.id !== pending.deviceId) {
+      return { status: 409, body: { error: 'No move in progress. Start again.' } };
+    }
+    this.handover = null;
+    this.handedOver = true;
+    // Step down only after this reply is on its way: stepping down stops the server, and a lost
+    // reply would leave the new device thinking the move failed while this one had already left.
+    setTimeout(() => {
+      Promise.resolve(this.onHandedOver?.(pending.self)).catch((e) => console.warn('Handover rejoin failed', e));
+    }, HANDOVER_STEP_DOWN_MS);
+    return { status: 200, body: { ok: true } };
+  }
+
+  private async deviceFor(token: unknown): Promise<{ id: string; user_id: string | null } | null> {
+    return this.services.deps.db.get<{ id: string; user_id: string | null }>(
+      'SELECT id, user_id FROM paired_devices WHERE token_hash = ?',
+      [await sha256(String(token ?? ''))],
+    );
+  }
+
+  private async market(req: MarketRequest): Promise<HttpResult> {
+    const { db } = this.services.deps;
+    const device = await this.deviceFor(req?.token);
+    if (!device) return { status: 401, body: { error: 'This device was removed from the family.' } };
+    const family = await this.services.family.current();
+    if (!family) return { status: 409, body: { error: 'No family on the main device.' } };
+
+    let ok = true;
+    let message: string | null = null;
+    try {
+      // A kid's phone can only act as that kid; a shared device can act for anyone, like the main device.
+      if (device.user_id && req.actorId !== device.user_id) throw new UserFacingError('This device can only trade for its owner.');
+      await this.services.rotation.ensureCurrentPeriod(family.id);
+      await this.services.market.perform(family.id, String(req.actorId ?? ''), req.op);
+      await this.services.market.sweep(family.id);
+    } catch (e) {
+      if (!(e instanceof UserFacingError)) throw e;
+      ok = false;
+      message = e.message;
+    }
+    await db.run('UPDATE paired_devices SET last_seen_at = ? WHERE id = ?', [this.services.deps.timestamp(), device.id]);
+    if (ok) this.listeners.forEach((fn) => fn());
+    const res: MarketResponse = { ok, message, snapshot: await exportSnapshot(db) };
+    return { status: 200, body: res };
+  }
+
   private async sync(req: SyncRequest): Promise<HttpResult> {
     const { db } = this.services.deps;
-    const device = await db.get<{ id: string; user_id: string | null }>(
-      'SELECT id, user_id FROM paired_devices WHERE token_hash = ?',
-      [await sha256(String(req?.token ?? ''))],
-    );
+    const device = await this.deviceFor(req?.token);
     if (!device) return { status: 401, body: { error: 'This device was removed from the family.' } };
 
     // A device can be tied to one kid once (right after pairing). After that only a parent
@@ -163,6 +282,8 @@ export class SyncHub {
         changed ||= r.ok;
       }
     }
+    // Chores just ticked off may settle held market coins.
+    if (changed && family) await this.services.market.sweep(family.id);
     if (changed) this.listeners.forEach((fn) => fn());
 
     // A refused action changes nothing here, but the device already showed it locally,

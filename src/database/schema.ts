@@ -208,4 +208,74 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE chores ADD COLUMN time_of_day TEXT NOT NULL DEFAULT 'any'
     CHECK (time_of_day IN ('any', 'morning', 'afternoon', 'evening'));
   `,
+  `
+  -- v5 (1.2): coins. Points are score (leaderboard, badges); coins are currency.
+  ALTER TABLE chores ADD COLUMN coins INTEGER NOT NULL DEFAULT 2;
+
+  -- type is checked in code, not here, so new kinds (marketplace, shop) need no table rebuild.
+  -- ref_id ties a transaction to whatever caused it besides an assignment, e.g. a market listing.
+  CREATE TABLE coin_transactions (
+    id TEXT PRIMARY KEY NOT NULL,
+    family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    assignment_id TEXT REFERENCES chore_assignments(id) ON DELETE SET NULL,
+    ref_id TEXT,
+    type TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_coins_user ON coin_transactions(user_id, created_at);
+  CREATE TRIGGER sync_bump_coin_transactions_insert AFTER INSERT ON coin_transactions BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_coin_transactions_update AFTER UPDATE ON coin_transactions BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_coin_transactions_delete AFTER DELETE ON coin_transactions BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+
+  -- Skips are now free "get out of jail" cards: 2 a month unless the family changed it.
+  UPDATE families SET max_buyouts_per_month = 2 WHERE max_buyouts_per_month = 4;
+  `,
+  `
+  -- v6 (1.2): marketplace and notifications.
+  ALTER TABLE families ADD COLUMN min_sell_price INTEGER NOT NULL DEFAULT 5;
+  ALTER TABLE families ADD COLUMN max_sales_per_week INTEGER NOT NULL DEFAULT 3;
+  ALTER TABLE families ADD COLUMN push_cost INTEGER NOT NULL DEFAULT 20;
+  ALTER TABLE families ADD COLUMN max_pushes_per_week INTEGER NOT NULL DEFAULT 2;
+
+  -- One row per sale, buy offer, handoff (a chore sent to a buy offer) or push.
+  -- assignment_id is deliberately not a foreign key: re-dealing a week deletes assignments,
+  -- and the market sweep refunds whatever was riding on them.
+  CREATE TABLE market_listings (
+    id TEXT PRIMARY KEY NOT NULL,
+    family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL,
+    assignment_id TEXT,
+    from_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    to_user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    offer_id TEXT,
+    price INTEGER NOT NULL,
+    deadline TEXT,
+    period_start TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    resolved_at TEXT
+  );
+  CREATE INDEX idx_market_family_status ON market_listings(family_id, status);
+  CREATE INDEX idx_market_assignment ON market_listings(assignment_id);
+  CREATE TRIGGER sync_bump_market_listings_insert AFTER INSERT ON market_listings BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_market_listings_update AFTER UPDATE ON market_listings BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_market_listings_delete AFTER DELETE ON market_listings BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+
+  CREATE TABLE notifications (
+    id TEXT PRIMARY KEY NOT NULL,
+    family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    text TEXT NOT NULL,
+    ref_id TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_notifications_user ON notifications(user_id, created_at);
+  CREATE TRIGGER sync_bump_notifications_insert AFTER INSERT ON notifications BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_notifications_update AFTER UPDATE ON notifications BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  CREATE TRIGGER sync_bump_notifications_delete AFTER DELETE ON notifications BEGIN UPDATE sync_meta SET value = value + 1 WHERE key = 'version'; END;
+  `,
 ];

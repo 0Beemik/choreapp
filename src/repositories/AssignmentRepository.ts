@@ -62,6 +62,15 @@ export class AssignmentRepository {
     );
   }
 
+  /** The (chore, person, day) triple is unique, so moving a chore must check this first. */
+  async hasChoreOnDay(userId: string, choreId: string, dueDate: DayKey): Promise<boolean> {
+    const row = await this.db.get<{ n: number }>(
+      'SELECT COUNT(*) AS n FROM chore_assignments WHERE user_id = ? AND chore_id = ? AND due_date = ?',
+      [userId, choreId, dueDate],
+    );
+    return (row?.n ?? 0) > 0;
+  }
+
   async reassign(id: string, userId: string): Promise<void> {
     await this.db.run('UPDATE chore_assignments SET user_id = ? WHERE id = ?', [userId, id]);
   }

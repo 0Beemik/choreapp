@@ -3,7 +3,7 @@ import { STARTER_CHORES } from '../lib/presets';
 import { NodeDb } from '../testing/nodeDb';
 import type { Family, User } from '../models';
 import type { HubTransport } from './protocol';
-import { SyncHub } from './SyncHub';
+import { HANDOVER_STEP_DOWN_MS, SyncHub } from './SyncHub';
 import { SyncMember } from './SyncMember';
 
 const HUB_ADDR = '192.168.1.20:47821';
@@ -133,6 +133,10 @@ describe('syncing chores', () => {
     expect(await balance(hubSvc, kid)).toBe(15);
     expect(await balance(phoneSvc, kid)).toBe(15);
     expect(await phone.pendingCount()).toBe(0);
+    // Coins travel the same way.
+    expect(result?.coinsAwarded).toBe(2);
+    expect(await hubSvc.coins.balance(kid.id)).toBe(2);
+    expect(await phoneSvc.coins.balance(kid.id)).toBe(2);
   });
 
   it('keeps taps made away from home and sends them later', async () => {
@@ -215,7 +219,7 @@ describe('syncing chores', () => {
   });
 
   it('brings parent changes on the hub to the phone', async () => {
-    await hubSvc.chores.add(family.id, { name: 'Walk dog', icon: '🐕', frequency: 'daily', points: 5, assigneeIds: [ava.id], timeOfDay: 'any' });
+    await hubSvc.chores.add(family.id, { name: 'Walk dog', icon: '🐕', frequency: 'daily', points: 5, assigneeIds: [ava.id], timeOfDay: 'any', coins: 2 });
     await phone.sync();
     expect((await phoneSvc.chores.list(family.id)).map((c) => c.name)).toContain('Walk dog');
   });
@@ -238,5 +242,133 @@ describe('syncing chores', () => {
     const [d] = await hub.devices();
     await hub.removeDevice(d.id);
     expect((await phone.sync()).status).toBe('removed');
+  });
+});
+
+describe('marketplace over Wi-Fi', () => {
+  beforeEach(pairPhone);
+
+  async function bensMondayChore() {
+    const chore = await hubSvc.chores.add(family.id, { name: 'Dishes', icon: '🍽️', frequency: 'daily', points: null, assigneeIds: [ben.id], timeOfDay: 'evening', coins: 2 });
+    await phone.sync();
+    const week = await hubSvc.deps.repos.assignments.findByPeriod(family.id, '2026-10-04');
+    return week.find((a) => a.choreId === chore.id && a.dueDate === '2026-10-05')!;
+  }
+
+  it('a phone posts and buys through the main device, and both see the result', async () => {
+    const a = await bensMondayChore();
+    await hubSvc.coins.adjust(family.id, ben.id, 20, 'gift');
+    await hubSvc.market.perform(family.id, ben.id, { op: 'sell', assignmentId: a.id, price: 6 });
+    await phone.sync();
+
+    await phone.setUser(ava.id);
+    const sale = (await phoneSvc.market.overview(family.id)).open[0];
+    await phone.market(ava.id, { op: 'buy', listingId: sale.id });
+    expect((await hubSvc.deps.repos.assignments.findById(a.id))?.userId).toBe(ava.id);
+    expect((await phoneSvc.deps.repos.assignments.findById(a.id))?.userId).toBe(ava.id);
+    expect((await phoneSvc.notifications.list([ben.id]))[0].kind).toBe('sale_bought');
+  });
+
+  it('a kid’s phone can only trade as that kid, and refusals come back as messages', async () => {
+    const a = await bensMondayChore();
+    await phone.setUser(ava.id);
+    await phone.sync(); // binds the phone to Ava on the hub
+    await expect(phone.market(ben.id, { op: 'sell', assignmentId: a.id, price: 6 })).rejects.toThrow('only trade for its owner');
+    await expect(phone.market(ava.id, { op: 'sell', assignmentId: a.id, price: 6 })).rejects.toThrow('isn’t yours');
+  });
+
+  it('needs home Wi-Fi', async () => {
+    online = false;
+    await expect(phone.market(ava.id, { op: 'offer', price: 3 })).rejects.toThrow('home Wi-Fi');
+  });
+
+  it('pays out held coins when the buyer ticks it off on their phone', async () => {
+    const a = await bensMondayChore();
+    await hubSvc.coins.adjust(family.id, ben.id, 20, 'gift');
+    await hubSvc.market.perform(family.id, ben.id, { op: 'sell', assignmentId: a.id, price: 6 });
+    await phone.setUser(ava.id);
+    await phone.sync();
+    await phone.market(ava.id, { op: 'buy', listingId: (await phoneSvc.market.overview(family.id)).open[0].id });
+
+    setNow(2026, 10, 5, 18);
+    await phone.act('complete', a.id);
+    await phone.sync();
+    expect(await hubSvc.coins.balance(ava.id)).toBe(2 + 6);
+    expect(await phoneSvc.coins.balance(ava.id)).toBe(2 + 6);
+  });
+});
+
+describe('moving the main device', () => {
+  const TABLET_ADDR = '192.168.1.30:47821';
+  let routes: Map<string, SyncHub>;
+  /** Home Wi-Fi with several devices on it. */
+  const net: HubTransport = {
+    async post(address, path, body) {
+      const target = routes.get(address);
+      if (!target) throw new Error('ECONNREFUSED');
+      return JSON.parse(JSON.stringify(await target.handle(path, JSON.parse(JSON.stringify(body)))));
+    },
+  };
+  const settle = () => new Promise((r) => setTimeout(r, HANDOVER_STEP_DOWN_MS + 50));
+
+  let kidSvc: Services;
+  let kid: SyncMember;
+  let oldHubAsMember: SyncMember;
+
+  beforeEach(async () => {
+    await pairPhone(); // the "tablet"
+    routes = new Map([[HUB_ADDR, hub]]);
+    kidSvc = await createServices(new NodeDb(), () => now);
+    kid = new SyncMember(kidSvc, net, async () => TABLET_ADDR);
+    const { code } = hub.newPairingCode();
+    await kid.join(HUB_ADDR, code, 'Ben’s phone');
+    await kid.setUser(ben.id);
+    await kid.sync();
+    oldHubAsMember = new SyncMember(hubSvc, net, async () => TABLET_ADDR);
+    hub.setHandoverListener((link) => oldHubAsMember.adopt(link));
+  });
+
+  it('needs the parent PIN, and a wrong one changes nothing', async () => {
+    await expect(phone.becomeMainDevice('9999')).rejects.toThrow('PIN isn’t right');
+    expect(await phone.link()).not.toBeNull();
+    expect((await kid.sync()).status).toBe('synced'); // the old main device still serves
+  });
+
+  it('moves everything; the old main device and every phone carry on with the new one', async () => {
+    await hubSvc.coins.adjust(family.id, ben.id, 15, 'Allowance');
+    await phone.becomeMainDevice('1234');
+
+    // The tablet is now the hub: no link, the family's PIN works here, the old hub is a paired device.
+    expect(await phone.link()).toBeNull();
+    expect(await phoneSvc.family.verifyPin(family.id, '1234')).toBe(true);
+    expect(await phoneSvc.coins.balance(ben.id)).toBe(15);
+    const tabletHub = new SyncHub(phoneSvc, () => now.getTime());
+    const devices = await tabletHub.devices();
+    expect(devices.map((d) => d.name).sort()).toEqual(['Ben’s phone', 'Previous main device']);
+    routes.set(TABLET_ADDR, tabletHub);
+
+    // The old hub steps down and rejoins as an ordinary device.
+    await settle();
+    expect((await hub.handle('/hello', {})).status).toBe(503);
+    expect((await oldHubAsMember.sync()).status).toBe('synced');
+    expect((await oldHubAsMember.link())?.address).toBe(TABLET_ADDR);
+
+    // Ben's phone, paired before the move, finds the new main device on its own.
+    const [mine] = await boardFor(kidSvc, ben).then((b) => (b.length ? b : boardFor(kidSvc, ava)));
+    await kid.act('complete', mine.id);
+    expect((await kid.sync()).status).toBe('synced');
+    expect((await kid.link())?.address).toBe(TABLET_ADDR);
+    expect((await phoneSvc.deps.repos.assignments.findById(mine.id))?.status).toBe('completed');
+  });
+
+  it('pauses changes mid-move and carries on if the move never finishes', async () => {
+    const link = (await phone.link())!;
+    const prep = await hub.handle('/handover/prepare', { token: link.token, pin: '1234' });
+    expect(prep.status).toBe(200);
+    expect((await kid.sync()).status).toBe('offline'); // refused while moving; it will retry
+    now = new Date(now.getTime() + 3 * 60 * 1000); // abandoned
+    routes.delete(TABLET_ADDR);
+    kid = new SyncMember(kidSvc, net, async () => HUB_ADDR);
+    expect((await kid.sync()).status).toBe('synced');
   });
 });

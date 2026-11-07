@@ -18,6 +18,7 @@ export default function ChoreEditor() {
   const [icon, setIcon] = useState(existing?.icon ?? DEFAULT_CHORE_ICON);
   const [frequency, setFrequency] = useState<ChoreFrequency>(existing?.frequency ?? 'weekly');
   const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>(existing?.timeOfDay ?? 'any');
+  const [coins, setCoins] = useState<number>(existing?.coins ?? 2);
   const [points, setPoints] = useState(existing?.points != null ? String(existing.points) : '');
   // Empty = rotate weekly; otherwise every picked kid does their own copy.
   const [assigneeIds, setAssigneeIds] = useState<string[]>(existing?.assigneeIds ?? []);
@@ -37,7 +38,7 @@ export default function ChoreEditor() {
     try {
       const p = points.trim() ? Number(points) : null;
       if (p !== null && (!Number.isInteger(p) || p < 1 || p > 1000)) throw new UserFacingError('Points must be 1–1000.');
-      const input = { name, icon, frequency, points: p, assigneeIds, timeOfDay };
+      const input = { name, icon, frequency, points: p, assigneeIds, timeOfDay, coins };
       if (existing) await services.chores.update(existing.id, input);
       else await services.chores.add(family.id, input);
       await refresh();
@@ -95,6 +96,15 @@ export default function ChoreEditor() {
             { value: 'rotate', label: '🔄 Rotate weekly (kids)' },
             // Kids first, then parents (e.g. Mow lawn → Dad).
             ...[...members].sort((a, b) => Number(a.role !== 'child') - Number(b.role !== 'child')).map((m) => ({ value: m.id, label: `${m.avatarEmoji} ${m.name}` })),
+          ]}
+        />
+        <Choice
+          label="Coins paid"
+          value={coins}
+          onChange={setCoins}
+          options={[
+            { value: 2, label: '🪙 2' },
+            { value: 3, label: '🪙 3 (bonus coin)' },
           ]}
         />
         <Field

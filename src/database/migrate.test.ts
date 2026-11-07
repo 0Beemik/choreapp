@@ -2,7 +2,7 @@ import { migrate } from '.';
 import { NodeDb } from '../testing/nodeDb';
 import { MIGRATIONS } from './schema';
 
-describe('v3/v4 migrations (several kids, part of day)', () => {
+describe('v3–v6 migrations (several kids, part of day, coins, market)', () => {
   it('keeps existing chores, assignments and point history linked', async () => {
     const db = new NodeDb();
     // A database as shipped before v3.
@@ -21,6 +21,8 @@ describe('v3/v4 migrations (several kids, part of day)', () => {
       INSERT INTO point_transactions (id, family_id, user_id, assignment_id, type, amount, reason, created_at)
         VALUES ('p1', 'f', 'ava', 'fish:2026-10-04', 'earned', 5, 'Feed fish', 't');
     `);
+    await db.exec(`INSERT INTO families (id, name, pin_hash, pin_salt, created_at) VALUES ('g', 'Custom', 'h', 's', 't')`);
+    await db.exec(`UPDATE families SET max_buyouts_per_month = 6 WHERE id = 'g'`);
     const versionBefore = (await db.get<{ value: number }>(`SELECT value FROM sync_meta WHERE key = 'version'`))!.value;
 
     await migrate(db);
@@ -32,6 +34,16 @@ describe('v3/v4 migrations (several kids, part of day)', () => {
       { id: 'fish', assignee_ids: '["ava"]', fixed_user_id: null },
       { id: 'trash', assignee_ids: '[]', fixed_user_id: null },
     ]);
+    // v5: every chore pays 2 coins; skips drop from the old default of 4 to 2, custom values stay.
+    expect(await db.all('SELECT DISTINCT coins FROM chores')).toEqual([{ coins: 2 }]);
+    expect(await db.all('SELECT id, max_buyouts_per_month AS n FROM families ORDER BY id')).toEqual([
+      { id: 'f', n: 2 },
+      { id: 'g', n: 6 },
+    ]);
+    // v6: marketplace defaults, empty market and notifications.
+    expect(await db.get(`SELECT min_sell_price AS a, max_sales_per_week AS b, push_cost AS c, max_pushes_per_week AS d FROM families WHERE id = 'f'`)).toEqual({ a: 5, b: 3, c: 20, d: 2 });
+    expect(await db.all('SELECT * FROM market_listings')).toEqual([]);
+    expect(await db.all('SELECT * FROM notifications')).toEqual([]);
     // v4: existing chores become all-day.
     expect(await db.all('SELECT DISTINCT time_of_day FROM chores')).toEqual([{ time_of_day: 'any' }]);
     expect(await db.get('SELECT assignment_id FROM point_transactions')).toEqual({ assignment_id: 'fish:2026-10-04' });

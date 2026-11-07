@@ -8,9 +8,13 @@ import type { RotationService } from './RotationService';
 export const DEFAULT_SETTINGS: FamilySettings = {
   pointsPerChore: 10,
   buyoutCostPercentage: 100,
-  maxBuyoutsPerMonth: 4,
+  maxBuyoutsPerMonth: 2,
   rotationDay: 'sunday',
   missedChorePenalty: 2,
+  minSellPrice: 5,
+  maxSalesPerWeek: 3,
+  pushCost: 20,
+  maxPushesPerWeek: 2,
 };
 
 export interface MemberInput {
@@ -66,7 +70,7 @@ export class FamilyService {
       await this.addMember(family.id, { ...input.parent, role: 'parent' });
       for (const kid of input.kids) await this.addMember(family.id, { ...kid, role: 'child' });
       for (const c of input.chores) {
-        await this.chores.add(family.id, { ...c, points: null, assigneeIds: [], timeOfDay: c.timeOfDay ?? 'any' });
+        await this.chores.add(family.id, { ...c, points: null, assigneeIds: [], timeOfDay: c.timeOfDay ?? 'any', coins: 2 });
       }
       await this.rotation.ensureCurrentPeriod(family.id);
     });
@@ -170,4 +174,8 @@ function validateSettings(s: FamilySettings): void {
   if (!whole(s.buyoutCostPercentage, 0, 1000)) throw new UserFacingError('Skip cost must be 0–1000%.');
   if (!whole(s.maxBuyoutsPerMonth, 0, 100)) throw new UserFacingError('Skips per month must be 0–100.');
   if (!whole(s.missedChorePenalty, 0, 1000)) throw new UserFacingError('Missed-chore penalty must be 0–1000.');
+  if (!whole(s.minSellPrice, 1, 1000)) throw new UserFacingError('Lowest sale price must be 1–1000 coins.');
+  if (!whole(s.maxSalesPerWeek, 0, 50)) throw new UserFacingError('Sales per week must be 0–50.');
+  if (!whole(s.pushCost, 1, 1000)) throw new UserFacingError('Push cost must be 1–1000 coins.');
+  if (!whole(s.maxPushesPerWeek, 0, 20)) throw new UserFacingError('Pushes per week must be 0–20.');
 }

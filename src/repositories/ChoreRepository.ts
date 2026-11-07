@@ -10,6 +10,7 @@ interface ChoreRow {
   points: number | null;
   assignee_ids: string;
   time_of_day: string;
+  coins: number;
   rotation_offset: number;
   is_active: number;
   created_at: string;
@@ -24,6 +25,7 @@ const toModel = (r: ChoreRow): Chore => ({
   points: r.points,
   assigneeIds: parseIds(r.assignee_ids),
   timeOfDay: r.time_of_day as TimeOfDay,
+  coins: r.coins,
   rotationOffset: r.rotation_offset,
   isActive: r.is_active === 1,
   createdAt: r.created_at,
@@ -43,18 +45,18 @@ export class ChoreRepository {
 
   async insert(c: Chore): Promise<void> {
     await this.db.run(
-      `INSERT INTO chores (id, family_id, name, icon, frequency, points, assignee_ids, time_of_day, rotation_offset, is_active, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [c.id, c.familyId, c.name, c.icon, c.frequency, c.points, JSON.stringify(c.assigneeIds), c.timeOfDay, c.rotationOffset,
+      `INSERT INTO chores (id, family_id, name, icon, frequency, points, assignee_ids, time_of_day, coins, rotation_offset, is_active, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [c.id, c.familyId, c.name, c.icon, c.frequency, c.points, JSON.stringify(c.assigneeIds), c.timeOfDay, c.coins, c.rotationOffset,
         c.isActive ? 1 : 0, c.createdAt],
     );
   }
 
   async update(c: Chore): Promise<void> {
     await this.db.run(
-      `UPDATE chores SET name = ?, icon = ?, frequency = ?, points = ?, assignee_ids = ?, time_of_day = ?, is_active = ?
+      `UPDATE chores SET name = ?, icon = ?, frequency = ?, points = ?, assignee_ids = ?, time_of_day = ?, coins = ?, is_active = ?
        WHERE id = ?`,
-      [c.name, c.icon, c.frequency, c.points, JSON.stringify(c.assigneeIds), c.timeOfDay, c.isActive ? 1 : 0, c.id],
+      [c.name, c.icon, c.frequency, c.points, JSON.stringify(c.assigneeIds), c.timeOfDay, c.coins, c.isActive ? 1 : 0, c.id],
     );
   }
 

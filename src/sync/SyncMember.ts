@@ -2,14 +2,17 @@ import { uuid } from '../lib/crypto';
 import { SerialQueue } from '../lib/SerialQueue';
 import type { Services } from '../services';
 import type { CompletionResult } from '../services/ChoreService';
+import type { MarketOp } from '../services/MarketService';
 import { UserFacingError } from '../services/deps';
 import { parseLocal } from './SyncHub';
-import { importSnapshot } from './snapshot';
+import { importFull, importSnapshot } from './snapshot';
 import {
   PROTOCOL_VERSION,
   type ActionType,
   type HelloResponse,
+  type HandoverPrepareResponse,
   type HubTransport,
+  type MarketResponse,
   type PairResponse,
   type SyncAction,
   type SyncResponse,
@@ -116,6 +119,66 @@ export class SyncMember {
     return result;
   }
 
+  /** Rejoin as an ordinary device after this device handed the main role to another. */
+  async adopt(link: { hubId: string; familyName: string; deviceId: string; token: string }): Promise<void> {
+    // Address unknown until found on the network; the first sync looks the hub up by id.
+    await this.saveLink({ ...link, address: '', userId: null, knownVersion: -1, lastSyncAt: null });
+  }
+
+  /**
+   * Makes this device the family's main device: the current one checks the parent PIN and sends
+   * everything; once it's saved here, the old one steps down. Needs home Wi-Fi.
+   */
+  becomeMainDevice(pin: string): Promise<void> {
+    return this.queue.run(async () => {
+      if (!(await this.link())) throw new UserFacingError('This device isn’t part of a family.');
+      await this.syncOnce(); // send any waiting taps first so nothing is left behind
+      const link = (await this.link())!;
+      const offline = 'Connect to your home Wi-Fi, with the main device on, and try again.';
+      const res = await this.transport.post(link.address, '/handover/prepare', { token: link.token, pin }).catch(() => null);
+      if (!res) throw new UserFacingError(offline);
+      if (res.status !== 200) throw new UserFacingError((res.body as { error?: string })?.error ?? offline);
+      const prep = res.body as HandoverPrepareResponse;
+      await importFull(this.services.deps.db, prep.full);
+      // Only step up once the old main device has stepped down; otherwise stay as we were.
+      const done = await this.transport.post(link.address, '/handover/commit', { token: link.token }).catch(() => null);
+      if (!done || done.status !== 200) {
+        throw new UserFacingError('The move didn’t finish, so nothing changed. Try again.');
+      }
+      const { db } = this.services.deps;
+      await db.transaction(async () => {
+        await db.run('DELETE FROM sync_outbox');
+        await db.run(`DELETE FROM app_state WHERE key = ?`, [LINK_KEY]);
+      });
+    });
+  }
+
+  /** Market moves need the hub's say-so, so they only work on home Wi-Fi. */
+  market(actorId: string, op: MarketOp): Promise<void> {
+    return this.queue.run(async () => {
+      let link = await this.link();
+      if (!link) throw new UserFacingError('This device isn’t part of a family.');
+      // Send any waiting chore taps first, so the hub judges the move on up-to-date data.
+      await this.syncOnce();
+      link = (await this.link())!;
+      const res = await this.transport.post(link.address, '/market', { token: link.token, actorId, op }).catch(() => null);
+      if (!res || (res.status !== 200 && res.status !== 401)) {
+        throw new UserFacingError('Connect to your home Wi-Fi (with the main device on) to use the marketplace.');
+      }
+      if (res.status === 401) throw new UserFacingError('This device was removed from the family.');
+      const reply = res.body as MarketResponse;
+      const { db } = this.services.deps;
+      await db.transaction(async () => {
+        await importSnapshot(db, reply.snapshot);
+        for (const a of await this.outbox()) {
+          await this.applyLocally(a.type, a.assignmentId, parseLocal(a.at)).catch(() => undefined);
+        }
+      });
+      await this.saveLink({ ...link, knownVersion: reply.snapshot.version, lastSyncAt: this.services.deps.timestamp() });
+      if (!reply.ok) throw new UserFacingError(reply.message ?? 'The main device said no.');
+    });
+  }
+
   async pendingCount(): Promise<number> {
     const row = await this.services.deps.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM sync_outbox');
     return row?.n ?? 0;
@@ -142,7 +205,8 @@ export class SyncMember {
     const body = { token: link.token, knownVersion: link.knownVersion, actions: outbox, userId: link.userId };
 
     let res = await this.transport.post(link.address, '/sync', body).catch(() => null);
-    if (!res) {
+    // Unreachable, or "the main device has moved": look for the hub by id (it may be a new device now).
+    if (!res || res.status === 503) {
       // The hub may have a new address after a router restart; look for it by id.
       const found = await this.findHub(link.hubId).catch(() => null);
       if (found && found !== link.address) {

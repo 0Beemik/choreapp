@@ -134,6 +134,13 @@ export default function Devices() {
           </Body>
         ) : null}
       </Card>
+      <Card>
+        <Heading>🏠 Moving the main device</Heading>
+        <Body muted>
+          To make another device (say, a tablet on the counter) the main device, join it to the family first, then open its ⚙️ settings and
+          choose “Make this the main device”. Everything moves across, and every phone reconnects by itself.
+        </Body>
+      </Card>
     </Screen>
   );
 }

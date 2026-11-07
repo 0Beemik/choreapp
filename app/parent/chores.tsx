@@ -29,7 +29,7 @@ export default function Chores() {
               subtitle={[
                 c.frequency === 'daily' ? 'Every day' : 'Once a week',
                 ...(c.timeOfDay !== 'any' ? [TIME_OF_DAY_LABELS[c.timeOfDay]] : []),
-                `${chorePoints(c, family)} pts`,
+                `${chorePoints(c, family)} pts · ${c.coins} 🪙`,
                 whoDoesIt(c.assigneeIds),
               ].join(' · ')}
               right={<Text style={{ color: colors.textMuted, fontSize: font.large }}>›</Text>}

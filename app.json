@@ -2,24 +2,31 @@
   "expo": {
     "name": "Family Chores",
     "slug": "family-chores-app",
-    "version": "1.0.0",
-    "orientation": "portrait",
+    "version": "1.2.0",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "familychoresapp",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.brent.familychoresapp",
+      "bundleIdentifier": "com.beemik.familychores",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.brent.familychoresapp",
+      "package": "com.beemik.familychores",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#6C5CE7"
-      }
+      },
+      "versionCode": 1,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "com.google.android.gms.permission.AD_ID"
+      ]
     },
     "web": {
       "output": "single",
@@ -40,7 +47,7 @@
       [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "androidAppId": "ca-app-pub-4594870786304846~6565493984",
           "iosAppId": "ca-app-pub-3940256099942544~1458002511",
           "delayAppMeasurementInit": true
         }
@@ -52,7 +59,16 @@
             "usesCleartextTraffic": true
           }
         }
-      ]
+      ],
+      "expo-background-task",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#6C5CE7"
+        }
+      ],
+      "./plugins/withReleaseSigning"
     ],
     "experiments": {
       "typedRoutes": true
@@ -60,9 +76,9 @@
     "extra": {
       "adUnits": {
         "android": {
-          "banner": "",
-          "interstitial": "",
-          "rewarded": ""
+          "banner": "ca-app-pub-4594870786304846/3518200807",
+          "interstitial": "ca-app-pub-4594870786304846/7385293620",
+          "rewarded": "ca-app-pub-4594870786304846/2309060918"
         },
         "ios": {
           "banner": "",
@@ -73,7 +89,7 @@
     }
   },
   "react-native-google-mobile-ads": {
-    "android_app_id": "ca-app-pub-3940256099942544~3347511713",
+    "android_app_id": "ca-app-pub-4594870786304846~6565493984",
     "ios_app_id": "ca-app-pub-3940256099942544~1458002511",
     "delay_app_measurement_init": true
   }
